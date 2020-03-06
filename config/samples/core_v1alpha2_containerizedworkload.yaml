@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ContainerizedWorkload
+metadata:
+  name: example-containerized-workload
+spec:
+  containers:
+    - name: my-nginx
+      image: nginx
+      resources:
+        limits:
+          memory: "200Mi"
+      ports:
+        - containerPort: 4848
+          protocol: "TCP"
+      env:
+        - name: WORDPRESS_DB_PASSWORD
+          value: ""
