@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ManualScalerTrait
+metadata:
+  name: manualscalertrait-sample
+spec:
+  replicaCount: 5
+  workloadRef:
+    apiVersion: "core.oam.dev/v1alpha2"
+    kind: "ContainerizedWorkload"
+    name: "example-containerized-workload"
+    uid: "453fdf3b-ca21-4441-816c-0eb19bd3c47a"
