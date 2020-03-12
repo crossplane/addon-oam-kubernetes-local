@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	cpv1alpha1 "github.com/crossplaneio/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/pkg/errors"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,7 +34,7 @@ const (
 )
 
 // create a corresponding deployment
-func (r *ContainerizedWorkloadReconciler) renderWorkload(ctx context.Context,
+func (r *ContainerizedWorkloadReconciler) renderWorkload(_ context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload) (*appsv1.Deployment, error) {
 	var RevisionHistoryLimit int32 = 100
 	deployName := workload.Name + "-deployment"
@@ -70,8 +72,20 @@ func (r *ContainerizedWorkloadReconciler) renderWorkload(ctx context.Context,
 }
 
 // create a service for the deployment
-func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context, deploy *appsv1.Deployment,
-	port *corev1.ContainerPort) (*corev1.Service, error) {
+func (r *ContainerizedWorkloadReconciler) renderService(_ context.Context, deploy *appsv1.Deployment,
+	workload *oamv1alpha2.ContainerizedWorkload) (*corev1.Service, error) {
+	// create a default in case there is no container port
+	port := &corev1.ContainerPort{
+		Name:          "OAM default",
+		Protocol:      "TCP",
+		ContainerPort: 8080,
+	}
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		if len(c.Ports) != 0 {
+			port = &c.Ports[0]
+		}
+	}
+
 	svc := corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -96,10 +110,10 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context, dep
 	}
 
 	// always set the controller reference so that we can watch this service
-	if err := ctrl.SetControllerReference(deploy, &svc, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(workload, &svc, r.Scheme); err != nil {
+		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
 		return nil, err
 	}
-
 	return &svc, nil
 }
 

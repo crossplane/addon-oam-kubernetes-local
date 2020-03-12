@@ -15,6 +15,8 @@ spec:
     plural: manualscalertraits
     singular: manualscalertrait
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: ManualScalerTrait is the Schema for the manualscalertraits API

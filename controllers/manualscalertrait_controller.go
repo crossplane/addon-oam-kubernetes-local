@@ -21,6 +21,9 @@ import (
 	cpv1alpha1 "github.com/crossplaneio/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -104,13 +107,34 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	log.Info("Get the deployment the trait is going to modify", "deploy name", scaleDeploy.Name, "UID", scaleDeploy.UID)
 
 	sd := scaleDeploy.DeepCopy()
-	// always set the controller reference so that we can watch this deployment
-	if err := ctrl.SetControllerReference(&manualScaler, sd, r.Scheme); err != nil {
-		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errUpdateDeployment)))
-		log.Error(err, "Failed to set controller reference to the owned deployment")
-		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
-			errUpdateStatus)
+	// always set the owner reference so that we can watch this deployment
+	isController := false
+	bod := true
+	// Create a new owner ref
+	ref := metav1.OwnerReference{
+		APIVersion:         manualScaler.APIVersion,
+		Kind:               manualScaler.Kind,
+		Name:               manualScaler.Name,
+		UID:                manualScaler.UID,
+		Controller:         &isController,
+		BlockOwnerDeletion: &bod,
 	}
+
+	existingRefs := scaleDeploy.GetOwnerReferences()
+	fi := -1
+	for i, r := range existingRefs {
+		if r.UID == manualScaler.UID {
+			fi = i
+			break
+		}
+	}
+	if fi == -1 {
+		existingRefs = append(existingRefs, ref)
+	} else {
+		existingRefs[fi] = ref
+	}
+	// Update owner references
+	scaleDeploy.SetOwnerReferences(existingRefs)
 	// merge to scale the deployment
 	if err := r.Patch(ctx, sd, client.MergeFrom(&scaleDeploy)); err != nil {
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleDeployment)))
@@ -126,6 +150,11 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 func (r *ManualScalerTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&oamv1alpha2.ManualScalerTrait{}).
-		Owns(&appsv1.Deployment{}).
+		Watches(&source.Kind{
+			Type: &appsv1.Deployment{},
+		}, &handler.EnqueueRequestForOwner{
+			OwnerType:    &oamv1alpha2.ManualScalerTrait{},
+			IsController: false, // we only added a owner reference to it as there can only be one
+		}).
 		Complete(r)
 }

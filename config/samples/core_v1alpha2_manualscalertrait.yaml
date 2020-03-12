@@ -3,9 +3,9 @@ kind: ManualScalerTrait
 metadata:
   name: manualscalertrait-sample
 spec:
-  replicaCount: 5
+  replicaCount: 3
   workloadRef:
     apiVersion: "core.oam.dev/v1alpha2"
     kind: "ContainerizedWorkload"
     name: "example-containerized-workload"
-    uid: "453fdf3b-ca21-4441-816c-0eb19bd3c47a"
+    uid: "ebd8b97b-820c-45a9-8e45-7fc65fa79c16"
