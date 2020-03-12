@@ -18,7 +18,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-
 	cpv1alpha1 "github.com/crossplaneio/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -104,9 +103,15 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	}
 	log.Info("Get the deployment the trait is going to modify", "deploy name", scaleDeploy.Name, "UID", scaleDeploy.UID)
 
-	// merge to scale the deployment
 	sd := scaleDeploy.DeepCopy()
-	sd.Spec.Replicas = &manualScaler.Spec.ReplicaCount
+	// always set the controller reference so that we can watch this deployment
+	if err := ctrl.SetControllerReference(&manualScaler, sd, r.Scheme); err != nil {
+		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errUpdateDeployment)))
+		log.Error(err, "Failed to set controller reference to the owned deployment")
+		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
+			errUpdateStatus)
+	}
+	// merge to scale the deployment
 	if err := r.Patch(ctx, sd, client.MergeFrom(&scaleDeploy)); err != nil {
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleDeployment)))
 		log.Error(err, "Failed to scale a deployment")
