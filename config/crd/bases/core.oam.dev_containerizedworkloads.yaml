@@ -15,6 +15,8 @@ spec:
     plural: containerizedworkloads
     singular: containerizedworkload
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: ContainerizedWorkload is the Schema for the containerizedworkloads
@@ -1126,7 +1128,9 @@ spec:
                 type: object
               type: array
             resources:
-              additionalProperties:
+              description: Resources managed by this containerised workload, key the
+                resource UID
+              items:
                 description: A ResourceReference refers to an resource managed by
                   an OAM resource.
                 properties:
@@ -1147,9 +1151,7 @@ spec:
                 - kind
                 - name
                 type: object
-              description: Resources managed by this containerised workload, key the
-                resource UID
-              type: object
+              type: array
           type: object
       type: object
   version: v1alpha2

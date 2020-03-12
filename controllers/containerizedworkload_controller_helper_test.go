@@ -36,9 +36,9 @@ func TestContainerizedWorkloadReconciler_cleanupResources(t *testing.T) {
 
 func TestContainerizedWorkloadReconciler_renderService(t *testing.T) {
 	type args struct {
-		ctx    context.Context
-		deploy *appsv1.Deployment
-		port   *corev1.ContainerPort
+		ctx      context.Context
+		deploy   *appsv1.Deployment
+		workload *oamv1alpha2.ContainerizedWorkload
 	}
 	testCases := map[string]struct {
 		reconciler ContainerizedWorkloadReconciler
@@ -50,7 +50,7 @@ func TestContainerizedWorkloadReconciler_renderService(t *testing.T) {
 	}
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got, err := testCase.reconciler.renderService(testCase.args.ctx, testCase.args.deploy, testCase.args.port)
+			got, err := testCase.reconciler.renderService(testCase.args.ctx, testCase.args.deploy, testCase.args.workload)
 			if (err != nil) != testCase.wantErr {
 				t.Errorf("renderService() error = %v, wantErr %v", err, testCase.wantErr)
 				return

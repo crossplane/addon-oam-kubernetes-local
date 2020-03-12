@@ -86,6 +86,7 @@ type ContainerizedWorkloadStatus struct {
 // +kubebuilder:object:root=true
 
 // ContainerizedWorkload is the Schema for the containerizedworkloads API
+// +kubebuilder:subresource:status
 type ContainerizedWorkload struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -37,6 +37,7 @@ type ManualScalerTraitStatus struct {
 // +kubebuilder:object:root=true
 
 // ManualScalerTrait is the Schema for the manualscalertraits API
+// +kubebuilder:subresource:status
 type ManualScalerTrait struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

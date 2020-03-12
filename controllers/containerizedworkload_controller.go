@@ -68,7 +68,7 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	log.Info("Get the workload")
+	log.Info("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
 
 	deploy, err := r.renderWorkload(ctx, &workload)
 	if err != nil {
@@ -89,27 +89,19 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 	}
 	log.Info("Successfully applied a deployment", "UID", deploy.UID)
 
-	// TODO(rz): Use ingress trait instead
-	// set up a service for the deployment if one of the containers have port
-	var service *corev1.Service
-	for _, c := range deploy.Spec.Template.Spec.Containers {
-		// TODO (rz): pass in all the ports
-		if len(c.Ports) != 0 {
-			service, err = r.renderService(ctx, deploy, &c.Ports[0])
-			if err != nil {
-				log.Error(err, "Failed to render a service")
-				continue
-			}
-			break
-		}
+	if err := r.Status().Update(ctx, &workload); err != nil {
+		return reconcile.Result{RequeueAfter: oamReconcileWait}, err
 	}
-	// always set the controller reference so that we can watch this service
-	if err := ctrl.SetControllerReference(&workload, service, r.Scheme); err != nil {
-		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
-		log.Error(err, "Failed to set the controller owner reference for a service")
+
+	// create a service for the workload
+	// TODO(rz): Use ingress trait instead
+	service, err := r.renderService(ctx, deploy, &workload)
+	if err != nil {
+		log.Error(err, "Failed to render a deployment")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
 			errUpdateStatus)
 	}
+
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
@@ -141,6 +133,10 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 		Name:       service.Name,
 		UID:        &service.UID,
 	})
+
+	if err := r.Status().Update(ctx, &workload); err != nil {
+		return reconcile.Result{RequeueAfter: oamReconcileWait}, err
+	}
 
 	workload.Status.SetConditions(cpv1alpha1.ReconcileSuccess())
 	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &workload), errUpdateStatus)
