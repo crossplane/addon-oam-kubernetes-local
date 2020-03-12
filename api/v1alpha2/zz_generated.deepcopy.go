@@ -122,9 +122,9 @@ func (in *ContainerizedWorkloadStatus) DeepCopyInto(out *ContainerizedWorkloadSt
 	in.ConditionedStatus.DeepCopyInto(&out.ConditionedStatus)
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
-		*out = make(map[types.UID]ResourceReference, len(*in))
-		for key, val := range *in {
-			(*out)[key] = *val.DeepCopy()
+		*out = make([]ResourceReference, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 }

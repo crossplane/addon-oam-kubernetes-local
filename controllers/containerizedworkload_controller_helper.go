@@ -61,7 +61,7 @@ func (r *ContainerizedWorkloadReconciler) renderWorkload(ctx context.Context,
 		},
 	}
 
-	// always set the controller reference so that we know which object owns this.
+	// always set the controller reference so that we can watch this deployment
 	if err := ctrl.SetControllerReference(workload, &depl, r.Scheme); err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context, dep
 		},
 	}
 
-	// always set the controller reference so that we know which object owns this.
+	// always set the controller reference so that we can watch this service
 	if err := ctrl.SetControllerReference(deploy, &svc, r.Scheme); err != nil {
 		return nil, err
 	}
@@ -107,15 +107,10 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context, dep
 func (r *ContainerizedWorkloadReconciler) cleanupResources(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload, deployUID, serviceUID *types.UID) error {
 	log := r.Log.WithValues("gc deployment", workload.Name)
-	if serviceUID == nil {
-		log.Info("Remove all services")
-	} else {
-		log.Info("Remove orphan services", "keep service UID", *serviceUID)
-	}
 	var deploy appsv1.Deployment
 	var service corev1.Service
-	removed := make([]types.UID, 0)
-	for uid, res := range workload.Status.Resources {
+	for _, res := range workload.Status.Resources {
+		uid := *res.UID
 		if res.Kind == KindDeployment {
 			if uid != *deployUID {
 				log.Info("Found an orphaned deployment", "deployment UID", *deployUID, "orphaned  UID", uid)
@@ -129,11 +124,10 @@ func (r *ContainerizedWorkloadReconciler) cleanupResources(ctx context.Context,
 				if err := r.Delete(ctx, &deploy); err != nil {
 					return err
 				}
-				removed = append(removed, uid)
 				log.Info("Removed an orphaned deployment", "deployment UID", *deployUID, "orphaned UID", uid)
 			}
 		} else if res.Kind == KindService {
-			if serviceUID == nil || uid != *serviceUID {
+			if uid != *serviceUID {
 				log.Info("Found an orphaned service", "orphaned  UID", uid)
 				sn := client.ObjectKey{Name: res.Name, Namespace: workload.Namespace}
 				if err := r.Get(ctx, sn, &service); err != nil {
@@ -145,14 +139,9 @@ func (r *ContainerizedWorkloadReconciler) cleanupResources(ctx context.Context,
 				if err := r.Delete(ctx, &service); err != nil {
 					return err
 				}
-				removed = append(removed, uid)
 				log.Info("Removed an orphaned service", "orphaned UID", uid)
 			}
 		}
-	}
-	// remove from status
-	for _, uid := range removed {
-		delete(workload.Status.Resources, uid)
 	}
 	return nil
 }

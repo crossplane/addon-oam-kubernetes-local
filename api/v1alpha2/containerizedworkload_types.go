@@ -80,7 +80,7 @@ type ContainerizedWorkloadStatus struct {
 	cpv1alpha1.ConditionedStatus `json:",inline"`
 
 	// Resources managed by this containerised workload, key the resource UID
-	Resources map[types.UID]ResourceReference `json:"resources,omitempty"`
+	Resources []ResourceReference `json:"resources,omitempty"`
 }
 
 // +kubebuilder:object:root=true
