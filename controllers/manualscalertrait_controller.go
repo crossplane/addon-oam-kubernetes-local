@@ -51,6 +51,7 @@ type ManualScalerTraitReconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=manualscalertraits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads,verbs=get;watch;
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads/status,verbs=get;watch;
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
 
 func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()

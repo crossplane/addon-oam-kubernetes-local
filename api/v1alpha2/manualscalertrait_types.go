@@ -23,6 +23,8 @@ import (
 // A ManualScalerTraitSpec defines the desired state of a ManualScalerTrait.
 type ManualScalerTraitSpec struct {
 	// ReplicaCount of the workload this trait applies to.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Maximum = 5
 	ReplicaCount int32 `json:"replicaCount"`
 
 	// WorkloadReference to the workload this trait applies to.
