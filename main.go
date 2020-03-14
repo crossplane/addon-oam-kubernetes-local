@@ -80,6 +80,10 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ManualScalerTrait")
 		os.Exit(1)
 	}
+	if err = (&corev1alpha2.ManualScalerTrait{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ManualScalerTrait")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
