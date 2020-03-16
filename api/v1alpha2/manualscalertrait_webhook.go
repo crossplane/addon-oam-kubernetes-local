@@ -31,17 +31,17 @@ func (r *ManualScalerTrait) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/mutate-manualscalertrait,mutating=true,failurePolicy=fail,groups=core.oam.dev,resources=manualscalertraits,verbs=create;update,versions=v1alpha2,name=manualscalertrait-mutate.kb.io
+// +kubebuilder:webhook:path=/mutate-manualscalertrait,mutating=true,failurePolicy=fail,groups=core.oam.dev,resources=manualscalertraits,verbs=create;update,versions=v1alpha2,name=manualscalertrait.mutate.core.oam.dev
 
 var _ webhook.Defaulter = &ManualScalerTrait{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *ManualScalerTrait) Default() {
-	r.Spec.ReplicaCount = 1
-	manualscalertraitlog.Info("set ReplicaCount to 1", "scaler trait name", r.Name)
+	r.Spec.ReplicaCount = 5
+	manualscalertraitlog.Info("set the ReplicaCount to 5", "scaler trait name", r.Name)
 }
 
-// +kubebuilder:webhook:verbs=create;update,path=/validate-manualscalertrait,mutating=false,failurePolicy=fail,groups=core.oam.dev,resources=manualscalertraits,versions=v1alpha2,name=manualscalertrait-validate.kb.io
+// +kubebuilder:webhook:verbs=create;update,path=/validate-manualscalertrait,mutating=false,failurePolicy=fail,groups=core.oam.dev,resources=manualscalertraits,versions=v1alpha2,name=manualscalertrait.validate.core.oam.dev
 
 var _ webhook.Validator = &ManualScalerTrait{}
 

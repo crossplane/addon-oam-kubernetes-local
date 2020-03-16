@@ -13,7 +13,7 @@ webhooks:
       namespace: system
       path: /mutate-manualscalertrait
   failurePolicy: Fail
-  name: manualscalertrait-mutate.kb.io
+  name: manualscalertrait.mutate.core.oam.dev
   rules:
   - apiGroups:
     - core.oam.dev
@@ -39,7 +39,7 @@ webhooks:
       namespace: system
       path: /validate-manualscalertrait
   failurePolicy: Fail
-  name: manualscalertrait-validate.kb.io
+  name: manualscalertrait.validate.core.oam.dev
   rules:
   - apiGroups:
     - core.oam.dev
