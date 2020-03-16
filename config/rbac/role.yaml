@@ -11,6 +11,7 @@ rules:
   resources:
   - deployments
   verbs:
+  - create
   - delete
   - get
   - list
@@ -22,6 +23,7 @@ rules:
   resources:
   - services
   verbs:
+  - create
   - delete
   - get
   - list
@@ -33,12 +35,8 @@ rules:
   resources:
   - containerizedworkloads
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - core.oam.dev
@@ -48,18 +46,13 @@ rules:
   - get
   - patch
   - update
-  - watch
 - apiGroups:
   - core.oam.dev
   resources:
   - manualscalertraits
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - core.oam.dev
