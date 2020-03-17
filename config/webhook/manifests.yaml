@@ -11,7 +11,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-manualscalertrait
+      path: /mutate-core-oam-dev-v1alpha2-manualscalertrait
   failurePolicy: Fail
   name: manualscalertrait.mutate.core.oam.dev
   rules:
@@ -37,7 +37,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-manualscalertrait
+      path: /validate-core-oam-dev-v1alpha2-manualscalertrait
   failurePolicy: Fail
   name: manualscalertrait.validate.core.oam.dev
   rules:

@@ -105,7 +105,7 @@ func (r *ContainerizedWorkloadReconciler) renderService(_ context.Context, deplo
 				},
 			},
 			Selector: map[string]string{OAMResourceNameLabel: deploy.Name},
-			Type:     corev1.ServiceTypeNodePort,
+			Type:     corev1.ServiceTypeClusterIP,
 		},
 	}
 
