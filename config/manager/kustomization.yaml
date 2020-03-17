@@ -5,6 +5,6 @@ kind: Kustomization
 images:
 - name: controller
   newName: controller
-  newTag: latest
+  newTag: "1"
 patchesStrategicMerge:
 - pullImage.yaml

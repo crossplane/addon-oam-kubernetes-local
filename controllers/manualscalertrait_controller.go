@@ -111,7 +111,7 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	// always set the owner reference so that we can watch this deployment
 	isController := false
 	bod := true
-	// Create a new owner ref
+	// Update owner references
 	ref := metav1.OwnerReference{
 		APIVersion:         manualScaler.APIVersion,
 		Kind:               manualScaler.Kind,
@@ -134,8 +134,9 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	} else {
 		existingRefs[fi] = ref
 	}
-	// Update owner references
-	scaleDeploy.SetOwnerReferences(existingRefs)
+	sd.SetOwnerReferences(existingRefs)
+	// scale replica
+	sd.Spec.Replicas = &manualScaler.Spec.ReplicaCount
 	// merge to scale the deployment
 	if err := r.Patch(ctx, sd, client.MergeFrom(&scaleDeploy)); err != nil {
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleDeployment)))
@@ -143,7 +144,8 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
-	log.Info("Successfully scaled a deployment", "UID", scaleDeploy.UID)
+	log.Info("Successfully scaled a deployment", "UID", scaleDeploy.UID, "target replica",
+		manualScaler.Spec.ReplicaCount)
 	manualScaler.Status.SetConditions(cpv1alpha1.ReconcileSuccess())
 	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &manualScaler), errUpdateStatus)
 }
