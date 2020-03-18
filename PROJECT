@@ -1,0 +1,10 @@
+domain: oam.dev
+repo: github.com/oam-dev/core-resource-controller
+resources:
+- group: core
+  kind: ContainerizedWorkload
+  version: v1alpha2
+- group: core
+  kind: ManualScalerTrait
+  version: v1alpha2
+version: "2"
