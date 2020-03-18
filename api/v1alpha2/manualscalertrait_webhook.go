@@ -37,6 +37,11 @@ var _ webhook.Defaulter = &ManualScalerTrait{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *ManualScalerTrait) Default() {
+	if r.Spec.ReplicaCount > 10 {
+		r.Spec.ReplicaCount = 10
+		manualscalertraitlog.Info("Maximum replica count set to 10")
+	}
+
 	if len(r.Spec.WorkloadReference.Kind) == 0 {
 		r.Spec.WorkloadReference.Kind = "ContainerizedWorkload"
 		manualscalertraitlog.Info("Default the WorkloadReference kind to ContainerizedWorkload")
