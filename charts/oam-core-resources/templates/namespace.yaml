@@ -1,0 +1,8 @@
+{{- if .Values.createNamespace -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    {{- include "oam-core-resources.labels" . | nindent 4 }}
+  name: {{ .Release.Namespace | quote }}
+{{- end -}}
