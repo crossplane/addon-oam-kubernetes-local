@@ -6,6 +6,7 @@ metadata:
 {{ include "oam-core-resources.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test-success
+  namespace: {{ .Release.Namespace }}
 spec:
   containers:
     - name: wget

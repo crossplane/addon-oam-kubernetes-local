@@ -12,7 +12,7 @@ spec:
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
-  name: {{ .Values.certificate.certificateName | quote }}
+  name: {{ .Values.certificate.certificateName }}
   namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:

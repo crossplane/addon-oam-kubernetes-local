@@ -1,8 +1,8 @@
-{{- if .Values.createNamespace -}}
+{{- if and .Release.Namespace (.Values.createNamespace | default false) -}}
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: {{ .Release.Namespace }}
   labels:
     {{- include "oam-core-resources.labels" . | nindent 4 }}
-  name: {{ .Release.Namespace | quote }}
-{{- end -}}
+  {{- end -}}
