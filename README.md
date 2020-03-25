@@ -10,7 +10,7 @@ This OAM Kubernetes implementation allows an application developer/operator to c
 3. Helm 3.0+ 
 
 
-## Examples
+## Getting started
 
 The functionality of this addon can be demonstrated with the following steps:
 

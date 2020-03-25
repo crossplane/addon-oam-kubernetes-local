@@ -25,9 +25,9 @@ spec:
           command:
             - /manager
           args:
-            - "--metrics-addr=127.0.0.1:8080"
+            - "--metrics-addr=:8080"
             - "--enable-leader-election"
-          image: {{ .Values.image.repository }}:{{ .Chart.AppVersion }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
