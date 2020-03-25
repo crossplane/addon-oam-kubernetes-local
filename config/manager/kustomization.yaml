@@ -4,7 +4,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: controller
-  newTag: "1"
+  newName: oamdev/core-resource-controller
+  newTag: v0.1
 patchesStrategicMerge:
 - pullImage.yaml
