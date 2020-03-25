@@ -53,7 +53,7 @@ helm install controller -n oam-system ./charts/oam-core-resources/
 kubectl apply -f config/samples/sample_application_config.yaml
 ```
 
-*. Verify that the application is running
+* Verify that the application is running
 You should see a deployment looking like below
 ```
 kubectl get deployments
