@@ -70,6 +70,9 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	wn := client.ObjectKey{Name: manualScaler.Spec.WorkloadReference.Name, Namespace: req.Namespace}
 	if err := r.Get(ctx, wn, &workload); err != nil {
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errLocateWorkload)))
+		log.Error(err, "Workload not find", "workload name",
+			manualScaler.Spec.WorkloadReference.Name,
+			"UID", workload.UID)
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
