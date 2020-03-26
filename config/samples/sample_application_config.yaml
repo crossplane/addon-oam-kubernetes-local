@@ -64,4 +64,4 @@ spec:
             metadata:
               name:  example-appconfig-trait
             spec:
-              replicaCount: 15
+              replicaCount: 5
