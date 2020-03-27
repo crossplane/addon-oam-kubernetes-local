@@ -17,17 +17,19 @@ package main
 
 import (
 	"flag"
-	corev1alpha2 "github.com/oam-dev/core-resource-controller/api/v1alpha2"
-	"github.com/oam-dev/core-resource-controller/controllers"
-	"github.com/oam-dev/core-resource-controller/webhooks"
+	"os"
+
+	"github.com/crossplane/crossplane/apis/oam"
 	adminv1 "k8s.io/api/admission/v1"
 	admregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/oam-dev/core-resource-controller/controllers"
+	"github.com/oam-dev/core-resource-controller/webhooks"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -38,7 +40,7 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = corev1alpha2.AddToScheme(scheme)
+	_ = oam.AddToScheme(scheme)
 	_ = adminv1.AddToScheme(scheme)
 	_ = admregv1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme

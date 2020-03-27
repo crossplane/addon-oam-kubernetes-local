@@ -25,17 +25,14 @@ spec:
     kind: ContainerizedWorkload
     spec:
       containers:
-        - name: my-nginx
-          image: nginx:1.16.1
-          resources:
-            limits:
-              memory: "200Mi"
+        - name: wordpress
+          image: wordpress:4.6.1-apache
+          # TODO(negz): Allow environment variables to be set from a secret? OAM
+          # doesn't have a concept of Kubernetes secrets, so we will likely need
+          # to abstract this somehow.
           ports:
-            - containerPort: 4848
-              protocol: "TCP"
-          env:
-            - name: WORDPRESS_DB_PASSWORD
-              value: ""
+            - containerPort: 80
+              name: wordpress
   parameters:
     - name: instance-name
       required: true
@@ -56,12 +53,14 @@ spec:
         - name: instance-name
           value: example-appconfig-workload
         - name: image
-          value: nginx:latest
+          value: wordpress:php7.2
       traits:
         - trait:
             apiVersion: core.oam.dev/v1alpha2
             kind: ManualScalerTrait
             metadata:
+              # TODO(negz): This name can be omitted and generated automatically if
+              # each trait kind may apply only once to a component/workload.
               name:  example-appconfig-trait
             spec:
-              replicaCount: 5
+              replicaCount: 6

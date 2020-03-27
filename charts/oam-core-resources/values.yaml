@@ -6,8 +6,8 @@ replicaCount: 1
 createNamespace: false
 image:
   repository: oamdev/core-resource-controller
-  tag: v0.2
-  pullPolicy: IfNotPresent
+  tag: v0.3
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""

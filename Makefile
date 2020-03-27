@@ -17,6 +17,10 @@ all: manager
 test: generate fmt vet manifests
 	go test ./... -coverprofile cover.out
 
+# Build controller binary
+controller: fmt vet
+	go build -o bin/controller main.go
+
 # Build manager binary
 manager: generate fmt vet
 	go build -o bin/manager main.go
