@@ -18,20 +18,20 @@ package controllers
 import (
 	"context"
 	"fmt"
-	cpv1alpha1 "github.com/crossplaneio/crossplane-runtime/apis/core/v1alpha1"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	oamv1alpha2 "github.com/oam-dev/core-resource-controller/api/v1alpha2"
+	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 )
 
 // Reconcile error strings.
@@ -79,7 +79,7 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	log.Info("Get the workload the trait is pointing to", "workload name", manualScaler.Spec.WorkloadReference.Name,
 		"UID", workload.UID)
 
-	if manualScaler.Spec.WorkloadReference.UID == nil || workload.UID != *manualScaler.Spec.WorkloadReference.UID {
+	if workload.UID != manualScaler.Spec.WorkloadReference.UID {
 		log.Info("Wrong workload", "trait references to ", manualScaler.Spec.WorkloadReference.UID)
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(fmt.Errorf(errLocateWorkload)))
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),

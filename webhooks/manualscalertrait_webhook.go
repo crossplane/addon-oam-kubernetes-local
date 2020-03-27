@@ -27,7 +27,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
-	"github.com/oam-dev/core-resource-controller/api/v1alpha2"
+	"github.com/crossplane/crossplane/apis/oam/v1alpha2"
 )
 
 type ManualScalerTraitValidator struct {
@@ -75,7 +75,7 @@ func (v ManualScalerTraitValidator) validate(ar adminv1.AdmissionReview) *adminv
 		return toErrAdmissionResponse(fmt.Errorf("maximum replica count 10, got %d", msTrait.Spec.ReplicaCount), http.StatusForbidden)
 
 	}
-	if msTrait.Spec.WorkloadReference.UID == nil || len(msTrait.Spec.WorkloadReference.Name) == 0 ||
+	if len(msTrait.Spec.WorkloadReference.Name) == 0 ||
 		len(msTrait.Spec.WorkloadReference.APIVersion) == 0 || len(msTrait.Spec.WorkloadReference.Kind) == 0 {
 		log.Info("workload reference not valid", "replicaCount", msTrait.Spec.WorkloadReference)
 		return toErrAdmissionResponse(fmt.Errorf("workload reference not valid, workload reference = %+v",

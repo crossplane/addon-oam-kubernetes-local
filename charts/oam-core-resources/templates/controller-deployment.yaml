@@ -22,8 +22,6 @@ spec:
         - name: {{ .Release.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          command:
-            - /manager
           args:
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
