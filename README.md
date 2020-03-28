@@ -28,9 +28,7 @@ kubectl create namespace crossplane-system
 
 helm repo add crossplane-master https://charts.crossplane.io/master/
 
-version=$(helm search repo crossplane --devel | awk '$1 == "crossplane-master/crossplane" {print $2}')
-
-helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version $version
+helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version 0.9.0-rc
 ```
 
 More detailed instructions can be found in the [Crossplane docs]( https://crossplane.io/docs/v0.8/install-crossplane.html).
@@ -39,8 +37,6 @@ More detailed instructions can be found in the [Crossplane docs]( https://crossp
 
 ```
 git clone git@github.com:crossplane/addon-oam-kubernetes-local.git
-
-make uninstall
 
 kubectl create namespace oam-system
 
