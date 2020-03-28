@@ -18,6 +18,7 @@ package controllers
 import (
 	"context"
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,8 +31,6 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
-	wh "github.com/crossplane/crossplane/pkg/oam/workload"
-	cwh "github.com/crossplane/crossplane/pkg/oam/workload/containerized"
 )
 
 const (
@@ -40,13 +39,12 @@ const (
 
 // Reconcile error strings.
 const (
-	errRenderWorkload   = "cannot render workload"
-	errUpdateStatus     = "cannot apply status"
-	errApplyDeployment  = "cannot apply the deployment"
-	errApplyService     = "cannot apply the service"
-	errGCDeployment     = "cannot clean up stale deployments"
-	errUpdateDeployment = "cannot update the deployment"
-	errScaleDeployment  = "cannot scale the deployment"
+	errRenderWorkload  = "cannot render workload"
+	errUpdateStatus    = "cannot apply status"
+	errApplyDeployment = "cannot apply the deployment"
+	errApplyService    = "cannot apply the service"
+	errGCDeployment    = "cannot clean up stale deployments"
+	errScaleDeployment = "cannot scale the deployment"
 )
 
 // ContainerizedWorkloadReconciler reconciles a ContainerizedWorkload object
@@ -68,29 +66,36 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 
 	var workload oamv1alpha2.ContainerizedWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("Container workload is deleted")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	log.Info("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
 
-	resources, err := cwh.Translator(ctx, &workload)
+	deploy, err := r.renderDeployment(ctx, &workload)
 	if err != nil {
 		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 		log.Error(err, "Failed to render a deployment")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
 			errUpdateStatus)
 	}
-	log.Info("Successfully rendered a deployment", "deployment", resources[0].GetName())
+	log.Info("Get a deployment", "deploy", deploy.Spec.Template.Spec.Containers[0])
 
+	log.Info("Successfully rendered a deployment",
+		"deployment name", deploy.Name,
+		"deployment Namespace", deploy.Namespace,
+		"number of containers", len(deploy.Spec.Template.Spec.Containers),
+		"first container image", deploy.Spec.Template.Spec.Containers[0].Image)
 	// server side apply, only the fields we set are touched
-	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.ObjectMeta.Name)}
-	if err := r.Patch(ctx, resources[0], client.Apply, applyOpts...); err != nil {
+	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.Name)}
+	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
 		log.Error(err, "Failed to apply to a deployment")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
 			errUpdateStatus)
 	}
-	deployUID := resources[0].GetUID()
-	log.Info("Successfully applied a deployment", "UID", deployUID)
+	log.Info("Successfully applied a deployment", "UID", deploy.UID)
 
 	if err := r.Status().Update(ctx, &workload); err != nil {
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, err
@@ -98,24 +103,23 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 
 	// create a service for the workload
 	// TODO(rz): Use ingress trait instead
-	if resources, err = wh.ServiceInjector(ctx, &workload, resources); err != nil {
-		log.Error(err, "Failed to render a deployment")
+	service, err := r.renderService(ctx, &workload, deploy)
+	if err != nil {
+		log.Error(err, "Failed to render a service")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
 			errUpdateStatus)
 	}
-
 	// server side apply the service
-	if err := r.Patch(ctx, resources[1], client.Apply, applyOpts...); err != nil {
+	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
 		log.Error(err, "Failed to apply a service")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
 			errUpdateStatus)
 	}
-	serviceUID := resources[1].GetUID()
-	log.Info("Successfully applied a service", "UID", serviceUID)
+	log.Info("Successfully applied a service", "UID", service.UID)
 
 	// garbage collect the service/deployments that we created but not needed
-	if err := r.cleanupResources(ctx, &workload, &deployUID, &serviceUID); err != nil {
+	if err := r.cleanupResources(ctx, &workload, &deploy.UID, &service.UID); err != nil {
 		workload.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errGCDeployment)))
 		log.Error(err, "Failed to clean up resources")
 		return reconcile.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &workload),
@@ -124,17 +128,17 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 	workload.Status.Resources = nil
 	// record the new deployment
 	workload.Status.Resources = append(workload.Status.Resources, cpv1alpha1.TypedReference{
-		APIVersion: resources[0].GetObjectKind().GroupVersionKind().GroupVersion().String(),
-		Kind:       resources[0].GetObjectKind().GroupVersionKind().Kind,
-		Name:       resources[0].GetName(),
-		UID:        deployUID,
+		APIVersion: deploy.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+		Kind:       deploy.GetObjectKind().GroupVersionKind().Kind,
+		Name:       deploy.GetName(),
+		UID:        deploy.UID,
 	})
 	// record the new service
 	workload.Status.Resources = append(workload.Status.Resources, cpv1alpha1.TypedReference{
-		APIVersion: resources[1].GetObjectKind().GroupVersionKind().GroupVersion().String(),
-		Kind:       resources[1].GetObjectKind().GroupVersionKind().Kind,
-		Name:       resources[1].GetName(),
-		UID:        serviceUID,
+		APIVersion: service.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+		Kind:       service.GetObjectKind().GroupVersionKind().Kind,
+		Name:       service.GetName(),
+		UID:        service.UID,
 	})
 
 	if err := r.Status().Update(ctx, &workload); err != nil {

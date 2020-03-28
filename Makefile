@@ -21,22 +21,6 @@ test: generate fmt vet manifests
 controller: fmt vet
 	go build -o bin/controller main.go
 
-# Build manager binary
-manager: generate fmt vet
-	go build -o bin/manager main.go
-
-# Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet manifests
-	go run ./main.go
-
-# Install CRDs into a cluster
-install: manifests
-	kustomize build config/crd | kubectl apply -f -
-
-# Uninstall CRDs from a cluster
-uninstall: manifests
-	kustomize build config/crd | kubectl delete -f -
-
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
 	cd config/manager && kustomize edit set image controller=${IMG}

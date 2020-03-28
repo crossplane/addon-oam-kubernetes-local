@@ -9,6 +9,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -25,9 +26,10 @@ var (
 	mutate_path_prefix   = "/mutate-"
 	validate_path_prefix = "/validate-"
 	Cert_mount_path      = "/etc/k8s-webhook-certs/"
-	scheme               = runtime.NewScheme()
-	codecs               = serializer.NewCodecFactory(scheme)
-	pT                   = adminv1.PatchTypeJSONPatch //only thing they supported and golang can't reference a const
+
+	scheme = runtime.NewScheme()
+	codecs = serializer.NewCodecFactory(scheme)
+	pT     = adminv1.PatchTypeJSONPatch //only thing they supported and golang can't reference a const
 )
 
 func init() {
@@ -76,7 +78,7 @@ func convertToHttpHandler(admit admitFunc, logger logr.Logger) httpHandler {
 		responseAdmissionReview := adminv1.AdmissionReview{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: adminv1.SchemeGroupVersion.String(),
-				Kind:       "AdmissionReview",
+				Kind:       reflect.TypeOf(adminv1.AdmissionReview{}).Name(),
 			},
 		}
 

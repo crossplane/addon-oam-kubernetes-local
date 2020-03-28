@@ -7,7 +7,7 @@ createNamespace: false
 image:
   repository: oamdev/core-resource-controller
   tag: v0.3
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
