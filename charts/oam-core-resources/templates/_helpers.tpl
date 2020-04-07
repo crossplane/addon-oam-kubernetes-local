@@ -33,13 +33,26 @@ Create chart name and version as used by the chart label.
 {{- end -}}
 
 {{/*
+Use webhook argument
+*/}}
+{{- define "oam-core-resources.use-webhook" -}}
+{{- if .Values.useWebhook -}}
+{{- "--enable-webhook=true" -}}
+{{- else -}}
+{{- "--enable-webhook=false" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Use create namespace
+*/}}
 {{- define "oam-core-resources.createNamespace" -}}
 {{- if eq .Release.Namespace "default" -}}
 {{- false -}}
 {{- else -}}
 {{- true -}}
 {{- end -}}
-*/}}
+{{- end -}}
 
 {{/*
 Common labels

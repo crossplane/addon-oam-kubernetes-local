@@ -63,4 +63,4 @@ spec:
               # each trait kind may apply only once to a component/workload.
               name:  example-appconfig-trait
             spec:
-              replicaCount: 6
+              replicaCount: 3

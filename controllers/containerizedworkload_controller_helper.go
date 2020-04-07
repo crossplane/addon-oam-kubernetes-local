@@ -20,14 +20,6 @@ const (
 	KindService    = "Service"
 )
 
-// OAMResourceTypes
-type OAMResourceTypes string
-
-// Supported OAM Resource Types
-const (
-	workloadType OAMResourceTypes = "workload"
-)
-
 // create a corresponding deployment
 func (r *ContainerizedWorkloadReconciler) renderDeployment(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload) (*appsv1.Deployment, error) {
@@ -40,10 +32,9 @@ func (r *ContainerizedWorkloadReconciler) renderDeployment(ctx context.Context,
 	if !ok {
 		return nil, fmt.Errorf("internal error, deployment is not rendered correctly")
 	}
-	// TODO: fix bug in the lib
-	r.Log.Info("translate a deployment", "deploy", deploy.Spec.Template.Spec.Containers[0])
+	// the translator lib doesn't set the namespace
 	deploy.Namespace = workload.Namespace
-
+	// k8s server-side patch complains if the protocol is not set
 	for i := 0; i < len(deploy.Spec.Template.Spec.Containers); i++ {
 		for j := 0; j < len(deploy.Spec.Template.Spec.Containers[i].Ports); j++ {
 			if len(deploy.Spec.Template.Spec.Containers[i].Ports[j].Protocol) == 0 {
@@ -51,8 +42,9 @@ func (r *ContainerizedWorkloadReconciler) renderDeployment(ctx context.Context,
 			}
 		}
 	}
-	r.Log.Info(" rendered a deployment", "deploy", deploy.Spec.Template.Spec.Containers[0])
-	// always set the controller reference so that we can watch this deployment and it will be deleted automatically
+	r.Log.Info(" rendered a deployment", "deploy", deploy.Spec.Template.Spec)
+
+	// set the controller reference so that we can watch this deployment and it will be deleted automatically
 	if err := ctrl.SetControllerReference(workload, deploy, r.Scheme); err != nil {
 		return nil, err
 	}
@@ -72,9 +64,12 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context,
 	if !ok {
 		return nil, fmt.Errorf("internal error, service is not rendered correctly")
 	}
-	// TODO: fix it in the lib
+	// the service injector lib doesn't set the namespace
 	service.Namespace = workload.Namespace
-	service.Spec.Ports[0].Protocol = corev1.ProtocolTCP
+	// k8s server-side patch complains if the protocol is not set
+	for i := 0; i < len(service.Spec.Ports); i++ {
+		service.Spec.Ports[i].Protocol = corev1.ProtocolTCP
+	}
 
 	// always set the controller reference so that we can watch this service and
 	if err := ctrl.SetControllerReference(workload, service, r.Scheme); err != nil {

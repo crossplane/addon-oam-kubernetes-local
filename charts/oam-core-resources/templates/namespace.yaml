@@ -5,4 +5,4 @@ metadata:
   name: {{ .Release.Namespace }}
   labels:
     {{- include "oam-core-resources.labels" . | nindent 4 }}
-  {{- end -}}
+{{- end -}}
