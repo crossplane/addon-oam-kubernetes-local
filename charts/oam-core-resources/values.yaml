@@ -4,9 +4,10 @@
 
 replicaCount: 1
 createNamespace: false
+useWebhook: true
 image:
   repository: oamdev/core-resource-controller
-  tag: v0.1
+  tag: v0.3
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -56,3 +57,4 @@ certificate:
   certificateName: serving-cert
   issuerName: selfsigned-issuer
   secretName: webhook-server-cert
+  mountPath: /etc/k8s-webhook-certs

@@ -17,16 +17,15 @@ spec:
     spec:
       serviceAccountName: {{ include "oam-core-resources.serviceAccountName" . }}
       securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Release.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          command:
-            - /manager
           args:
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
+            - {{ include "oam-core-resources.use-webhook" . | quote }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
@@ -36,8 +35,8 @@ spec:
               name: webhook-server
               protocol: TCP
           volumeMounts:
-            - mountPath: /tmp/k8s-webhook-server/serving-certs/
-              name: cert
+            - mountPath: {{ .Values.certificate.mountPath }}
+              name: tls-cert
               readOnly: true
         - name: kube-rbac-proxy
           image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.1
@@ -50,20 +49,20 @@ spec:
             - containerPort: 8443
               name: https
       volumes:
-        - name: cert
+        - name: tls-cert
           secret:
             defaultMode: 420
             secretName: {{ .Values.certificate.secretName | quote }}
       terminationGracePeriodSeconds: 10
     {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{ toYaml . | indent 8 }}
+    nodeSelector:
+      {{ toYaml . | indent 8 }}
     {{- end }}
     {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
+    affinity:
+      {{- toYaml . | nindent 8 }}
     {{- end }}
     {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
+    tolerations:
+      {{- toYaml . | nindent 8 }}
     {{- end }}
