@@ -7,10 +7,13 @@ spec:
     - name: my-nginx
       image: nginx
       resources:
-        limits:
-          memory: "200Mi"
+        cpu:
+          required: "1.0"
+        memory:
+          required: "200Mi"
       ports:
         - containerPort: 4848
+          name: example
           protocol: "TCP"
       env:
         - name: WORDPRESS_DB_PASSWORD
