@@ -25,6 +25,7 @@ spec:
           args:
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
+            - {{ include "oam-core-resources.use-webhook" . | quote }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

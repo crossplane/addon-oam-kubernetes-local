@@ -69,12 +69,6 @@ func (v ManualScalerTraitValidator) validate(ar adminv1.AdmissionReview) *adminv
 		return toErrAdmissionResponse(err, http.StatusOK)
 	}
 
-	// validate trait spec
-	if msTrait.Spec.ReplicaCount > 10 {
-		log.Info("Maximum replica count exceed 10", "replicaCount", msTrait.Spec.ReplicaCount)
-		return toErrAdmissionResponse(fmt.Errorf("maximum replica count 10, got %d", msTrait.Spec.ReplicaCount), http.StatusForbidden)
-
-	}
 	if len(msTrait.Spec.WorkloadReference.Name) == 0 ||
 		len(msTrait.Spec.WorkloadReference.APIVersion) == 0 || len(msTrait.Spec.WorkloadReference.Kind) == 0 {
 		log.Info("workload reference not valid", "replicaCount", msTrait.Spec.WorkloadReference)

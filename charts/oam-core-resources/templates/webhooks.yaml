@@ -1,4 +1,4 @@
-
+{{- if .Values.useWebhook -}}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -62,3 +62,4 @@ webhooks:
   sideEffects: None
   admissionReviewVersions: ["v1"]
   timeoutSeconds: 5
+{{- end -}}
