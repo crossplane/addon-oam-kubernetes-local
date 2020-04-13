@@ -14,8 +14,8 @@ endif
 all: manager
 
 # Run tests
-test: generate fmt vet manifests
-	go test ./... -coverprofile cover.out
+test: fmt vet manifests
+	go test $(go list ./... | grep -v e2e-test) -coverprofile cover.out
 
 # Build controller binary
 controller: fmt vet
@@ -48,11 +48,42 @@ generate: controller-gen
 
 # Build the docker image
 docker-build: test
-	docker build . -t ${IMG}
+	docker build . -t $(IMG)
 
 # Push the docker image
 docker-push:
 	docker push ${IMG}
+
+# load docker image to the kind cluster
+kind-load:
+	kind load docker-image $(IMG) || { echo >&2 "kind not installed or error loading image: $(IMG)"; exit 1; }
+
+setup-e2e:
+	kubectl create namespace cert-manager
+	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
+	kubectl create namespace crossplane-system
+	helm repo add crossplane-master https://charts.crossplane.io/master/
+	helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version 0.9.0-rc --wait
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=webhook -n cert-manager --timeout=300s
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
+	kubectl wait --for=condition=Ready pod -l app=crossplane -n crossplane-system --timeout=300s
+
+cleanup-e2e:
+	helm uninstall crossplane --namespace crossplane-system
+	kubectl delete namespace crossplane-system --wait
+	kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml --wait
+
+kind-e2e: docker-build kind-load
+	kubectl create namespace oam-system
+	helm install e2e ./charts/oam-core-resources/ -n oam-system --set image.repository=$(IMG) --wait \
+		|| { echo >&2 "helm install timeout"; \
+		kubectl logs `kubectl get pods -n oam-system -l "app.kubernetes.io/name=oam-core-resources,app.kubernetes.io/instance=e2e" -o jsonpath="{.items[0].metadata.name}"` -c e2e; \
+		helm uninstall e2e -n oam-system; exit 1;}
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=oam-core-resources -n oam-system --timeout=300s
+	ginkgo -v ./e2e-test/
+	helm uninstall e2e -n oam-system
+	kubectl delete namespace oam-system --wait
+
 
 # find or download controller-gen
 # download controller-gen if necessary
