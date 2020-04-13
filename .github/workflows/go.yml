@@ -35,15 +35,15 @@ jobs:
     - name: Test
       run: make test
 
-    - name: Install Kind
-      uses: engineerd/setup-kind@v0.3.0
-    
     - name: Install Helm
       uses: engineerd/configurator@v0.0.1
       with:
         name: helm
         url: https://get.helm.sh/helm-v3.1.2-linux-amd64.tar.gz
         pathInArchive: linux-amd64/helm
+
+    - name: Setup Kind Cluster
+        uses: helm/kind-action@v1.0.0-rc.1
 
     - name: Get ginkgo
       run: |
