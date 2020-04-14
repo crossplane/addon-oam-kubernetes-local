@@ -64,7 +64,7 @@ var _ = AfterSuite(func() {
 	By("Tearing down the test environment")
 })
 
-// Not sure why gomega doesn't have these
+// Match the error to be already exist
 type AlreadyExistMatcher struct {
 }
 
@@ -84,6 +84,7 @@ func (matcher AlreadyExistMatcher) NegatedFailureMessage(actual interface{}) (me
 	return format.Message(actual, "not to be already exist")
 }
 
+// Match the error to be not found
 type NotFoundMatcher struct {
 }
 

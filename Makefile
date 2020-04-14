@@ -14,8 +14,8 @@ endif
 all: manager
 
 # Run tests
-test: fmt vet manifests
-	go test $(go list ./... | grep -v e2e-test) -coverprofile cover.out
+test: fmt vet
+	go test -v $(shell go list ./... | grep -v e2e-test) -coverprofile cover.out
 
 # Build controller binary
 controller: fmt vet
@@ -47,7 +47,7 @@ generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths="./..."
 
 # Build the docker image
-docker-build: test
+docker-build:
 	docker build . -t $(IMG)
 
 # Push the docker image
@@ -58,7 +58,7 @@ docker-push:
 kind-load:
 	kind load docker-image $(IMG) || { echo >&2 "kind not installed or error loading image: $(IMG)"; exit 1; }
 
-setup-e2e:
+e2e-setup:
 	kubectl create namespace cert-manager
 	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
 	kubectl create namespace crossplane-system
@@ -68,12 +68,12 @@ setup-e2e:
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
 	kubectl wait --for=condition=Ready pod -l app=crossplane -n crossplane-system --timeout=300s
 
-cleanup-e2e:
+e2e-cleanup:
 	helm uninstall crossplane --namespace crossplane-system
 	kubectl delete namespace crossplane-system --wait
 	kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml --wait
 
-kind-e2e: docker-build kind-load
+e2e-test: docker-build kind-load
 	kubectl create namespace oam-system
 	helm install e2e ./charts/oam-core-resources/ -n oam-system --set image.repository=$(IMG) --wait \
 		|| { echo >&2 "helm install timeout"; \
@@ -83,7 +83,6 @@ kind-e2e: docker-build kind-load
 	ginkgo -v ./e2e-test/
 	helm uninstall e2e -n oam-system
 	kubectl delete namespace oam-system --wait
-
 
 # find or download controller-gen
 # download controller-gen if necessary
