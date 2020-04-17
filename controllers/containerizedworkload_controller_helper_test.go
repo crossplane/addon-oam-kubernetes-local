@@ -4,10 +4,15 @@ import (
 	"context"
 	"testing"
 
+	. "github.com/onsi/ginkgo"
 	"k8s.io/apimachinery/pkg/types"
 
 	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 )
+
+var _ = Describe("Manualscalertrait Controller Test", func() {
+
+})
 
 func TestContainerizedWorkloadReconciler_cleanupResources(t *testing.T) {
 	type args struct {

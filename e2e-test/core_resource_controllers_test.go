@@ -47,7 +47,6 @@ var _ = Describe("ContainerizedWorkload", func() {
 			time.Second*30, time.Millisecond*500).Should(&NotFoundMatcher{})
 		// recreate it
 		Eventually(
-			// gomega has a bug that can't take nil as the actual input, so has to make it a func
 			func() error {
 				return k8sClient.Create(ctx, &ns)
 			},
@@ -59,7 +58,9 @@ var _ = Describe("ContainerizedWorkload", func() {
 		// delete the namespace with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
+
 	It("apply an application config", func() {
+		// create a workload definition
 		wd := oamv1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   "containerizedworkloads.core.oam.dev",
@@ -74,7 +75,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		logf.Log.Info("Creating workload definition")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &AlreadyExistMatcher{}))
-		// Workload CR
+		// create a workload CR
 		wl := oamv1alpha2.ContainerizedWorkload{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
@@ -99,6 +100,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 				},
 			},
 		}
+		// Create a component definition
 		comp := oamv1alpha2.Component{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "example-component",
@@ -125,7 +127,40 @@ var _ = Describe("ContainerizedWorkload", func() {
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
-		workloadName := "example-appconfig-workload"
+		// Create manual scaler trait definition
+		mt := oamv1alpha2.TraitDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "manualscalertraits.core.oam.dev",
+				Labels: lablel,
+			},
+			Spec: oamv1alpha2.TraitDefinitionSpec{
+				Reference: oamv1alpha2.DefinitionReference{
+					Name: "manualscalertraits.core.oam.dev",
+				},
+			},
+		}
+		logf.Log.Info("Creating trait definition")
+		// For some reason, traitDefinition is created as a Cluster scope object
+		Expect(k8sClient.Create(ctx, &mt)).Should(SatisfyAny(BeNil(), &AlreadyExistMatcher{}))
+		// Create a manualscaler trait CR
+		var replica int32 = 5
+		mts := oamv1alpha2.ManualScalerTrait{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      "sample-manualscaler-trait",
+				Labels:    lablel,
+			},
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "core.oam.dev/v1alpha2",
+				Kind:       "ManualScalerTrait",
+			},
+			Spec: oamv1alpha2.ManualScalerTraitSpec{
+				ReplicaCount: replica,
+			},
+		}
+		// Create application configuration
+		workloadInstanceName := "example-appconfig-workload"
+		imageName := "wordpress:php7.2"
 		appConfig := oamv1alpha2.ApplicationConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "example-appconfig",
@@ -139,11 +174,18 @@ var _ = Describe("ContainerizedWorkload", func() {
 						ParameterValues: []oamv1alpha2.ComponentParameterValue{
 							{
 								Name:  "instance-name",
-								Value: intstr.IntOrString{StrVal: workloadName, Type: intstr.String},
+								Value: intstr.IntOrString{StrVal: workloadInstanceName, Type: intstr.String},
 							},
 							{
 								Name:  "image",
-								Value: intstr.IntOrString{StrVal: "wordpress:php7.2", Type: intstr.String},
+								Value: intstr.IntOrString{StrVal: imageName, Type: intstr.String},
+							},
+						},
+						Traits: []oamv1alpha2.ComponentTrait{
+							{
+								Trait: runtime.RawExtension{
+									Object: &mts,
+								},
 							},
 						},
 					},
@@ -152,21 +194,40 @@ var _ = Describe("ContainerizedWorkload", func() {
 		}
 		logf.Log.Info("Creating application config", "Name", appConfig.Name, "Namespace", appConfig.Namespace)
 		Expect(k8sClient.Create(ctx, &appConfig)).Should(BeNil())
-
+		// Verification
 		By("Checking deployment is created")
 		objectKey := client.ObjectKey{
-			Name:      workloadName,
+			Name:      workloadInstanceName,
 			Namespace: namespace,
 		}
-		res := &appsv1.Deployment{}
+		deploy := &appsv1.Deployment{}
 		logf.Log.Info("Checking on deployment", "Key", objectKey)
-
 		Eventually(
 			func() error {
-				return k8sClient.Get(ctx, objectKey, res)
+				return k8sClient.Get(ctx, objectKey, deploy)
 			},
-			time.Second*30, time.Millisecond*500).Should(BeNil())
+			time.Second*15, time.Millisecond*500).Should(BeNil())
 
-		//Expect(len(res.Spec.Template.Spec.Containers[0].EnvFrom)).NotTo(BeZero())
+		By("Verify that the parameter substitute works")
+		Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageName))
+
+		// Verification
+		By("Checking service is created")
+		service := &corev1.Service{}
+		logf.Log.Info("Checking on service", "Key", objectKey)
+		Eventually(
+			func() error {
+				return k8sClient.Get(ctx, objectKey, service)
+			},
+			time.Second*15, time.Millisecond*500).Should(BeNil())
+
+		By("Verify deployment scaled according to the manualScaler trait")
+		Eventually(
+			func() int32 {
+				k8sClient.Get(ctx, objectKey, deploy)
+				return deploy.Status.Replicas
+			},
+			time.Second*60, time.Second*5).Should(BeEquivalentTo(replica))
+		Expect(*deploy.Spec.Replicas).Should(BeEquivalentTo(replica))
 	})
 })
