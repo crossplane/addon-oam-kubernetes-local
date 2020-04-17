@@ -17,12 +17,13 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,6 +38,7 @@ import (
 // Reconcile error strings.
 const (
 	errLocateWorkload   = "cannot find workload"
+	errLocateResources  = "cannot find resources"
 	errLocateDeployment = "cannot find deployment"
 )
 
@@ -66,22 +68,31 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		"WorkloadReference", manualScaler.Spec.WorkloadReference)
 
 	// Fetch the workload this trait is referring to
-	var workload oamv1alpha2.ContainerizedWorkload
+	var workload unstructured.Unstructured
+	workload.SetAPIVersion(manualScaler.Spec.WorkloadReference.APIVersion)
+	workload.SetKind(manualScaler.Spec.WorkloadReference.Kind)
 	wn := client.ObjectKey{Name: manualScaler.Spec.WorkloadReference.Name, Namespace: req.Namespace}
 	if err := r.Get(ctx, wn, &workload); err != nil {
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errLocateWorkload)))
-		log.Error(err, "Workload not find", "workload name",
-			manualScaler.Spec.WorkloadReference.Name,
-			"UID", workload.UID)
+		log.Error(err, "Workload not find", "kind", manualScaler.Spec.WorkloadReference.Kind,
+			"workload name", manualScaler.Spec.WorkloadReference.Name)
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
+	UID := workload.GetUID()
 	log.Info("Get the workload the trait is pointing to", "workload name", manualScaler.Spec.WorkloadReference.Name,
-		"UID", workload.UID)
+		"UID", UID)
 
-	if workload.UID != manualScaler.Spec.WorkloadReference.UID {
+	if UID != manualScaler.Spec.WorkloadReference.UID {
 		log.Info("Wrong workload", "trait references to ", manualScaler.Spec.WorkloadReference.UID)
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(fmt.Errorf(errLocateWorkload)))
+		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
+			errUpdateStatus)
+	}
+	resources, err := extractResources(workload)
+	if err != nil {
+		log.Error(err, "Cannot find the workload resources", "workload", workload.UnstructuredContent())
+		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(fmt.Errorf(errLocateResources)))
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
@@ -90,7 +101,7 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	// Fetch the deployment we are going to modify
 	var scaleDeploy appsv1.Deployment
 	found := false
-	for _, res := range workload.Status.Resources {
+	for _, res := range resources {
 		if res.Kind == KindDeployment {
 			dn := client.ObjectKey{Name: res.Name, Namespace: req.Namespace}
 			if err := r.Get(ctx, dn, &scaleDeploy); err != nil {
@@ -103,13 +114,12 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		}
 	}
 	if !found {
-		log.Info("Cannot locate a deployment", "total resources", len(workload.Status.Resources))
+		log.Info("Cannot locate a deployment", "total resources", len(resources))
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(fmt.Errorf(errLocateDeployment)))
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
 	log.Info("Get the deployment the trait is going to modify", "deploy name", scaleDeploy.Name, "UID", scaleDeploy.UID)
-
 	sd := scaleDeploy.DeepCopy()
 	// always set the owner reference so that we can watch this deployment
 	isController := false
@@ -150,7 +160,23 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 	log.Info("Successfully scaled a deployment", "UID", scaleDeploy.UID, "target replica",
 		manualScaler.Spec.ReplicaCount)
 	manualScaler.Status.SetConditions(cpv1alpha1.ReconcileSuccess())
+
 	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &manualScaler), errUpdateStatus)
+}
+
+// All workload need to have a typedReference in its status for the trait to find the underlying
+func extractResources(workload unstructured.Unstructured) ([]cpv1alpha1.TypedReference, error) {
+	var references []cpv1alpha1.TypedReference
+	res, found, err := unstructured.NestedFieldNoCopy(workload.Object, "status", "resources")
+	if err != nil || !found {
+		return nil, err
+	}
+	refs, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(refs, &references)
+	return references, err
 }
 
 func (r *ManualScalerTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
