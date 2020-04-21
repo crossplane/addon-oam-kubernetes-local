@@ -1,0 +1,20 @@
+# permissions to do viewer manualscalertraits.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manualscalertrait-viewer-role
+rules:
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - manualscalertraits
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - manualscalertraits/status
+  verbs:
+  - get
