@@ -1,0 +1,10 @@
+resources:
+- manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: controller
+  newName: oamdev/core-resource-controller
+  newTag: v0.2
+patchesStrategicMerge:
+- pullImage.yaml

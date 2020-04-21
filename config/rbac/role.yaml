@@ -1,0 +1,64 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - containerizedworkloads
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - containerizedworkloads/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - manualscalertraits
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.oam.dev
+  resources:
+  - manualscalertraits/status
+  verbs:
+  - get
+  - patch
+  - update
