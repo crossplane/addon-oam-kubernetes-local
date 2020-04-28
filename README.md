@@ -6,7 +6,7 @@ This OAM Kubernetes implementation allows an application developer/operator to c
 ## Prerequisites
 
 1. go version 1.12+
-2. Kubernetes version v1.15+ with KubeCtl configured
+2. Kubernetes version v1.17+ with KubeCtl configured
 3. Helm 3.0+ 
 
 
