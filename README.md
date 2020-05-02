@@ -26,9 +26,9 @@ More detailed instructions for cert manager can be found in the [Cert-manager do
 ```
 kubectl create namespace crossplane-system
 
-helm repo add crossplane-master https://charts.crossplane.io/master/
+helm repo add crossplane-alpha https://charts.crossplane.io/alpha
 
-helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version 0.9.0-rc
+helm install crossplane --namespace crossplane-system crossplane-alpha/crossplane
 ```
 
 More detailed instructions can be found in the [Crossplane docs]( https://crossplane.io/docs/v0.8/install-crossplane.html).
