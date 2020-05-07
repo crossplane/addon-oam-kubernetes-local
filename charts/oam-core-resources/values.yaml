@@ -3,7 +3,6 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-createNamespace: false
 useWebhook: true
 image:
   repository: oamdev/core-resource-controller:v0.3
