@@ -15,7 +15,7 @@ all: manager
 
 # Run tests
 test: fmt vet
-	go test -v $(shell go list ./... | grep -v e2e-test) -coverprofile cover.out
+	go test -v $(shell go list ./... | grep -v test) -coverprofile cover.out
 
 # Build controller binary
 controller: fmt vet
@@ -80,7 +80,7 @@ e2e-test: docker-build kind-load
 		kubectl logs `kubectl get pods -n oam-system -l "app.kubernetes.io/name=oam-core-resources,app.kubernetes.io/instance=e2e" -o jsonpath="{.items[0].metadata.name}"` -c e2e; \
 		helm uninstall e2e -n oam-system; exit 1;}
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=oam-core-resources -n oam-system --timeout=300s
-	ginkgo -v ./e2e-test/
+	ginkgo -v ./test/
 	helm uninstall e2e -n oam-system
 	kubectl delete namespace oam-system --wait
 
