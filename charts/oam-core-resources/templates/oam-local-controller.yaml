@@ -1,4 +1,14 @@
 ---
+{{- if .Values.serviceAccount.create -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "oam-core-resources.serviceAccountName" . }}
+  labels:
+    {{ include "oam-core-resources.labels" . | nindent 4 }}
+{{- end }}
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
