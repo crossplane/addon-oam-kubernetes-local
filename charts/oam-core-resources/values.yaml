@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-useWebhook: true
+useWebhook: false
 image:
   repository: crossplane/addon-oam-kubernetes-local:v0.1
   pullPolicy: IfNotPresent
