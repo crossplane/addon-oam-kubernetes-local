@@ -43,7 +43,7 @@ spec:
 
 
 ---
-apiVersion: admissionregistration.k8s.io/v1
+apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
   creationTimestamp: null
@@ -71,11 +71,11 @@ webhooks:
     - manualscalertraits
   failurePolicy: Fail
   sideEffects: None
-  admissionReviewVersions: ["v1"]
+  admissionReviewVersions: ["v1", "v1beta1"]
   timeoutSeconds: 5
 
 ---
-apiVersion: admissionregistration.k8s.io/v1
+apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
   creationTimestamp: null
@@ -103,6 +103,6 @@ webhooks:
         - manualscalertraits
   failurePolicy: Fail
   sideEffects: None
-  admissionReviewVersions: ["v1"]
+  admissionReviewVersions: ["v1", "v1beta1"]
   timeoutSeconds: 5
 {{- end -}}
