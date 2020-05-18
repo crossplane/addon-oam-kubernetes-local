@@ -19,30 +19,24 @@ import (
 	"flag"
 	"os"
 
-	"github.com/crossplane/crossplane/apis/oam"
-	adminv1 "k8s.io/api/admission/v1"
-	admregv1 "k8s.io/api/admissionregistration/v1"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	oamapi "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/oam-dev/core-resource-controller/controllers"
-	"github.com/oam-dev/core-resource-controller/webhooks"
+	oamcore "github.com/crossplane/oam-controllers/pkg/controller/core"
+	"github.com/crossplane/oam-controllers/pkg/webhooks"
 	// +kubebuilder:scaffold:imports
 )
 
-var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-)
+var scheme = runtime.NewScheme()
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = oam.AddToScheme(scheme)
-	_ = adminv1.AddToScheme(scheme)
-	_ = admregv1.AddToScheme(scheme)
+	_ = oamapi.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -60,53 +54,45 @@ func main() {
 		o.Development = true
 	}))
 
+	oamLog := ctrl.Log.WithName("oam kubernetes runtime example")
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
 		LeaderElection:     enableLeaderElection,
+		LeaderElectionID:   "oam-controller-runtime",
+		CertDir:            webhooks.Cert_mount_path, // has to be the same as helm value
 		Port:               9443,
-		CertDir:            webhooks.Cert_mount_path,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		oamLog.Error(err, "unable to create a controller manager")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.ContainerizedWorkloadReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("ContainerizedWorkload"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ContainerizedWorkload")
+	if err = oamcore.Setup(mgr, logging.NewLogrLogger(oamLog)); err != nil {
+		oamLog.Error(err, "unable to setup oam core controller")
 		os.Exit(1)
 	}
-	if err = (&controllers.ManualScalerTraitReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("ManualScalerTrait"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ManualScalerTrait")
-		os.Exit(1)
-	}
+
 	if enableWebhook {
 		if err = (&webhooks.ManualScalerTraitValidator{
 			Log: ctrl.Log.WithName("validator webhook").WithName("ManualScalerTrait"),
 		}).SetupWebhookWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook name", "ManualScalerTraitValidator")
+			oamLog.Error(err, "unable to create webhook", "webhook name", "ManualScalerTraitValidator")
 			os.Exit(1)
 		}
 		if err = (&webhooks.ManualScalerTraitMutater{
 			Log: ctrl.Log.WithName("mutate webhook").WithName("ManualScalerTrait"),
 		}).SetupWebhookWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook name", "ManualScalerTraitMutater")
+			oamLog.Error(err, "unable to create webhook", "webhook name", "ManualScalerTraitMutater")
 			os.Exit(1)
 		}
 	}
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("starting manager")
+	oamLog.Info("starting the OAM controller manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		oamLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }

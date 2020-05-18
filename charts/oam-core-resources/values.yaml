@@ -5,7 +5,7 @@
 replicaCount: 1
 useWebhook: true
 image:
-  repository: oamdev/core-resource-controller:v0.3
+  repository: oamdev/core-resource-controller:v0.41
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

@@ -1,5 +1,4 @@
 {{- if .Values.useWebhook -}}
-
 ---
 apiVersion: v1
 kind: Service

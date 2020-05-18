@@ -1,27 +1,25 @@
-package controllers
+package containerizedworkload
 
 import (
 	"context"
 	"fmt"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
-	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
-	wh "github.com/crossplane/crossplane/pkg/oam/workload"
-	cwh "github.com/crossplane/crossplane/pkg/oam/workload/containerized"
+
+	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	cws "github.com/crossplane/oam-kubernetes-runtime/pkg/workload"
+	cwh "github.com/crossplane/oam-kubernetes-runtime/pkg/workload/containerized"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
 
-const (
-	KindDeployment = "Deployment"
-	KindService    = "Service"
+	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 // create a corresponding deployment
-func (r *ContainerizedWorkloadReconciler) renderDeployment(ctx context.Context,
+func (r *Reconciler) renderDeployment(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload) (*appsv1.Deployment, error) {
 
 	resources, err := cwh.Translator(ctx, workload)
@@ -53,10 +51,10 @@ func (r *ContainerizedWorkloadReconciler) renderDeployment(ctx context.Context,
 }
 
 // create a service for the deployment
-func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context,
+func (r *Reconciler) renderService(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload, deploy *appsv1.Deployment) (*corev1.Service, error) {
 	// create a service for the workload
-	resources, err := wh.ServiceInjector(ctx, workload, []resource.Object{deploy})
+	resources, err := cws.ServiceInjector(ctx, workload, []oam.Object{deploy})
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +68,6 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context,
 	for i := 0; i < len(service.Spec.Ports); i++ {
 		service.Spec.Ports[i].Protocol = corev1.ProtocolTCP
 	}
-
 	// always set the controller reference so that we can watch this service and
 	if err := ctrl.SetControllerReference(workload, service, r.Scheme); err != nil {
 		return nil, err
@@ -79,14 +76,14 @@ func (r *ContainerizedWorkloadReconciler) renderService(ctx context.Context,
 }
 
 // delete deployments/services that are not the same as the existing
-func (r *ContainerizedWorkloadReconciler) cleanupResources(ctx context.Context,
+func (r *Reconciler) cleanupResources(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload, deployUID, serviceUID *types.UID) error {
 	log := r.Log.WithValues("gc deployment", workload.Name)
 	var deploy appsv1.Deployment
 	var service corev1.Service
 	for _, res := range workload.Status.Resources {
 		uid := res.UID
-		if res.Kind == KindDeployment {
+		if res.Kind == util.KindDeployment && res.APIVersion == appsv1.SchemeGroupVersion.String() {
 			if uid != *deployUID {
 				log.Info("Found an orphaned deployment", "deployment UID", *deployUID, "orphaned  UID", uid)
 				dn := client.ObjectKey{Name: res.Name, Namespace: workload.Namespace}
@@ -101,7 +98,7 @@ func (r *ContainerizedWorkloadReconciler) cleanupResources(ctx context.Context,
 				}
 				log.Info("Removed an orphaned deployment", "deployment UID", *deployUID, "orphaned UID", uid)
 			}
-		} else if res.Kind == KindService {
+		} else if res.Kind == util.KindService && res.APIVersion == corev1.SchemeGroupVersion.String() {
 			if uid != *serviceUID {
 				log.Info("Found an orphaned service", "orphaned  UID", uid)
 				sn := client.ObjectKey{Name: res.Name, Namespace: workload.Namespace}
