@@ -1,4 +1,4 @@
-package controllers
+package containerizedworkload
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"k8s.io/apimachinery/pkg/types"
 
-	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
+	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 )
 
 var _ = Describe("Manualscalertrait Controller Test", func() {
@@ -22,7 +22,7 @@ func TestContainerizedWorkloadReconciler_cleanupResources(t *testing.T) {
 		serviceUID *types.UID
 	}
 	testCases := map[string]struct {
-		reconciler ContainerizedWorkloadReconciler
+		reconciler Reconciler
 		args       args
 		wantErr    bool
 	}{

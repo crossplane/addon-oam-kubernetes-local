@@ -62,8 +62,8 @@ e2e-setup:
 	kubectl create namespace cert-manager
 	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
 	kubectl create namespace crossplane-system
-	helm repo add crossplane-master https://charts.crossplane.io/master/
-	helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version 0.9.0-rc --wait
+	helm repo add crossplane-alpha https://charts.crossplane.io/alpha
+	helm install crossplane --namespace crossplane-system crossplane-alpha/crossplane
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=webhook -n cert-manager --timeout=300s
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
 	kubectl wait --for=condition=Ready pod -l app=crossplane -n crossplane-system --timeout=300s

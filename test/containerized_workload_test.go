@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 var _ = Describe("ContainerizedWorkload", func() {
@@ -33,7 +35,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		logf.Log.Info("Start to run a test, clean up previous resources")
 		// delete the namespace with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).
-			Should(SatisfyAny(BeNil(), &NotFoundMatcher{}))
+			Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		logf.Log.Info("make sure all the resources are removed")
 		objectKey := client.ObjectKey{
 			Name: namespace,
@@ -44,13 +46,13 @@ var _ = Describe("ContainerizedWorkload", func() {
 			func() error {
 				return k8sClient.Get(ctx, objectKey, res)
 			},
-			time.Second*30, time.Millisecond*500).Should(&NotFoundMatcher{})
+			time.Second*30, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 		// recreate it
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
 			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &AlreadyExistMatcher{}))
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	})
 	AfterEach(func() {
@@ -70,20 +72,26 @@ var _ = Describe("ContainerizedWorkload", func() {
 				Reference: oamv1alpha2.DefinitionReference{
 					Name: "containerizedworkloads.core.oam.dev",
 				},
+				ChildResourceKinds: []oamv1alpha2.ChildResourceKind{
+					{
+						APIVersion: appsv1.SchemeGroupVersion.String(),
+						Kind:       util.KindDeployment,
+					},
+					{
+						APIVersion: corev1.SchemeGroupVersion.String(),
+						Kind:       util.KindService,
+					},
+				},
 			},
 		}
 		logf.Log.Info("Creating workload definition")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
-		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// create a workload CR
 		wl := oamv1alpha2.ContainerizedWorkload{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
 				Labels:    lablel,
-			},
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "core.oam.dev/v1alpha2",
-				Kind:       "ContainerizedWorkload",
 			},
 			Spec: oamv1alpha2.ContainerizedWorkloadSpec{
 				Containers: []oamv1alpha2.Container{
@@ -100,6 +108,10 @@ var _ = Describe("ContainerizedWorkload", func() {
 				},
 			},
 		}
+		// reflect workload gvk from scheme
+		gvks, _, _ := scheme.ObjectKinds(&wl)
+		wl.APIVersion = gvks[0].GroupVersion().String()
+		wl.Kind = gvks[0].Kind
 		// Create a component definition
 		comp := oamv1alpha2.Component{
 			ObjectMeta: metav1.ObjectMeta{
@@ -141,7 +153,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		}
 		logf.Log.Info("Creating trait definition")
 		// For some reason, traitDefinition is created as a Cluster scope object
-		Expect(k8sClient.Create(ctx, &mt)).Should(SatisfyAny(BeNil(), &AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &mt)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// Create a manualscaler trait CR
 		var replica int32 = 5
 		mts := oamv1alpha2.ManualScalerTrait{
@@ -150,14 +162,14 @@ var _ = Describe("ContainerizedWorkload", func() {
 				Name:      "sample-manualscaler-trait",
 				Labels:    lablel,
 			},
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "core.oam.dev/v1alpha2",
-				Kind:       "ManualScalerTrait",
-			},
 			Spec: oamv1alpha2.ManualScalerTraitSpec{
 				ReplicaCount: replica,
 			},
 		}
+		// reflect trait gvk from scheme
+		gvks, _, _ = scheme.ObjectKinds(&mts)
+		mts.APIVersion = gvks[0].GroupVersion().String()
+		mts.Kind = gvks[0].Kind
 		// Create application configuration
 		workloadInstanceName := "example-appconfig-workload"
 		imageName := "wordpress:php7.2"

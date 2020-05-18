@@ -46,7 +46,7 @@ helm install controller -n oam-system ./charts/oam-core-resources/
 * Apply the sample application config
 
 ```
-kubectl apply -f config/samples/sample_application_config.yaml
+kubectl apply -f examples/containerized-workload/
 ```
 
 * Verify that the application is running

@@ -13,24 +13,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package containerizedworkload
 
 import (
 	"context"
-	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"strings"
 	"time"
 
+	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
+	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 )
 
 const (
@@ -44,11 +46,20 @@ const (
 	errApplyDeployment = "cannot apply the deployment"
 	errApplyService    = "cannot apply the service"
 	errGCDeployment    = "cannot clean up stale deployments"
-	errScaleDeployment = "cannot scale the deployment"
 )
 
+// Setup adds a controller that reconciles ContainerizedWorkload.
+func Setup(mgr ctrl.Manager, log logging.Logger) error {
+	reconciler := Reconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("ContainerizedWorkload"),
+		Scheme: mgr.GetScheme(),
+	}
+	return reconciler.SetupWithManager(mgr)
+}
+
 // ContainerizedWorkloadReconciler reconciles a ContainerizedWorkload object
-type ContainerizedWorkloadReconciler struct {
+type Reconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
@@ -59,7 +70,7 @@ type ContainerizedWorkloadReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
-func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("containerizedworkload", req.NamespacedName)
 	log.Info("Reconcile container workload")
@@ -149,9 +160,11 @@ func (r *ContainerizedWorkloadReconciler) Reconcile(req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &workload), errUpdateStatus)
 }
 
-func (r *ContainerizedWorkloadReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	src := &oamv1alpha2.ContainerizedWorkload{}
+	name := "oam/" + strings.ToLower(oamv1alpha2.ContainerizedWorkloadGroupKind)
 	return ctrl.NewControllerManagedBy(mgr).
+		Named(name).
 		For(src).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).

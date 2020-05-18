@@ -18,16 +18,15 @@ package webhooks
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 
-	logr "github.com/go-logr/logr"
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/go-logr/logr"
 	adminv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-
-	"github.com/crossplane/crossplane/apis/oam/v1alpha2"
 )
 
 type ManualScalerTraitValidator struct {
