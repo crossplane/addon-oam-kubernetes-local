@@ -166,6 +166,7 @@ spec:
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{ if .Values.useWebhook }}
           ports:
             - containerPort: 9443
               name: webhook-server
@@ -174,6 +175,7 @@ spec:
             - mountPath: {{ .Values.certificate.mountPath }}
               name: tls-cert
               readOnly: true
+          {{ end }}
         - name: kube-rbac-proxy
           image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.1
           args:
