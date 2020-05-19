@@ -28,9 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	oamv1alpha2 "github.com/crossplane/crossplane/apis/oam/v1alpha2"
@@ -173,11 +171,5 @@ func extractResources(workload unstructured.Unstructured) ([]cpv1alpha1.TypedRef
 func (r *ManualScalerTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&oamv1alpha2.ManualScalerTrait{}).
-		Watches(&source.Kind{
-			Type: &appsv1.Deployment{},
-		}, &handler.EnqueueRequestForOwner{
-			OwnerType:    &oamv1alpha2.ManualScalerTrait{},
-			IsController: false, // we only added a owner reference to it as there can only be one
-		}).
 		Complete(r)
 }
