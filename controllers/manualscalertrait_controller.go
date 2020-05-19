@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -76,16 +77,6 @@ func (r *ManualScalerTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(errors.Wrap(err, errLocateWorkload)))
 		log.Error(err, "Workload not find", "kind", manualScaler.Spec.WorkloadReference.Kind,
 			"workload name", manualScaler.Spec.WorkloadReference.Name)
-		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
-			errUpdateStatus)
-	}
-	UID := workload.GetUID()
-	log.Info("Get the workload the trait is pointing to", "workload name", manualScaler.Spec.WorkloadReference.Name,
-		"UID", UID)
-
-	if UID != manualScaler.Spec.WorkloadReference.UID {
-		log.Info("Wrong workload", "trait references to ", manualScaler.Spec.WorkloadReference.UID)
-		manualScaler.Status.SetConditions(cpv1alpha1.ReconcileError(fmt.Errorf(errLocateWorkload)))
 		return ctrl.Result{RequeueAfter: oamReconcileWait}, errors.Wrap(r.Status().Update(ctx, &manualScaler),
 			errUpdateStatus)
 	}
