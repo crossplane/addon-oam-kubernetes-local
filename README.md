@@ -18,7 +18,7 @@ The functionality of this addon can be demonstrated with the following steps:
 ```
 kubectl create namespace cert-manager
 
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v0.15.0/cert-manager.yaml
 ```
 More detailed instructions for cert manager can be found in the [Cert-manager docs](https://cert-manager.io/docs/installation/kubernetes/).
 
