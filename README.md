@@ -1,65 +1,84 @@
-# oam-kubernetes-implementation
+# OAM Controllers
 
-This OAM Kubernetes implementation allows an application developer/operator to compose a cloud-native application following the
- OAM v1alpha2 spec and run it on a kubernetes cluster.  
+> **👷 WARNNING:** This repo is designed to be used by **OAM workloads/traits/scopes developers.**
+
+## What's inside?
+
+This repo contains Kubernetes controllers for core OAM [workloads](https://github.com/oam-dev/spec/blob/master/3.workload.md#core-workload)/[traits](https://github.com/oam-dev/spec/blob/master/6.traits.md#core-traits)/scopes. 
+
+Workloads
+- [ContainerizedWorkload](https://github.com/crossplane/addon-oam-kubernetes-local/tree/79a8c2e5695a757aa06247058912b4354e1c6d09/pkg/controller/core/workloads/containerizedworkload)
+
+Traits
+- [ManualScalerTrait](https://github.com/crossplane/addon-oam-kubernetes-local/tree/79a8c2e5695a757aa06247058912b4354e1c6d09/pkg/controller/core/traits/manualscalertrait)
 
 ## Prerequisites
 
-1. go version 1.12+
-2. Kubernetes version v1.17+ with KubeCtl configured
-3. Helm 3.0+ 
+- Kubernetes v1.16+
+- Helm 3
+- [Crossplane](https://github.com/crossplane/crossplane) v0.11+ installed
 
+## (Optional) In case you don't know how to install Crossplane
 
-## Getting started
-
-The functionality of this addon can be demonstrated with the following steps:
-
-* Install cert manager
-```
-kubectl create namespace cert-manager
-
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
-```
-More detailed instructions for cert manager can be found in the [Cert-manager docs](https://cert-manager.io/docs/installation/kubernetes/).
-
-* Install OAM Application Controller
-```
+Here's an easy three steps version:
+```console
 kubectl create namespace crossplane-system
-
 helm repo add crossplane-alpha https://charts.crossplane.io/alpha
-
 helm install crossplane --namespace crossplane-system crossplane-alpha/crossplane
 ```
 
-More detailed instructions can be found in the [Crossplane docs]( https://crossplane.io/docs/v0.8/install-crossplane.html).
-
-* Install OAM Core workload and trait controllers
-
+Please feel free to ignore this warning which is caused by helm v2 compatibility issue:
 ```
+manifest_sorter.go:192: info: skipping unknown hook: "crd-install"
+```
+
+## Install OAM controllers
+
+#### Clone this repo
+
+```console
 git clone git@github.com:crossplane/addon-oam-kubernetes-local.git
+cd ./addon-oam-kubernetes-local
+```
 
+#### (Optional) Enable webhook and install cert manager
+
+The OAM `ManualScalerTrait` controller includes a sample webhook to [validate the manual scalar trait](https://github.com/crossplane/addon-oam-kubernetes-local/blob/757d1922a5266e775b1f131af7da4fb6cbc1a037/pkg/webhooks/manualscalertrait_webhook.go). This webhook [is disabled by default](https://github.com/crossplane/addon-oam-kubernetes-local/blob/42e82c49fb679df4e295802b4727c25faaad4d24/charts/oam-core-resources/values.yaml#L6) in its helm chart.
+
+You need to install a cert-manager to provide self-signed certifications if you want to play with the webhooks.
+
+```console
+kubectl create namespace cert-manager
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.14.0/cert-manager.yaml
+```
+> For more detailed instructions of cert manager please check [Cert-manager docs](https://cert-manager.io/docs/installation/kubernetes/).
+
+#### Install controllers
+
+```console
 kubectl create namespace oam-system
-
 helm install controller -n oam-system ./charts/oam-core-resources/ 
 ```
 
-* Apply the sample application config
+## Verify
 
-```
+* Apply a sample application configuration
+
+```console
 kubectl apply -f examples/containerized-workload/
 ```
 
 * Verify that the application is running
 You should see a deployment looking like below
-```
+```console
 kubectl get deployments
 NAME                                    READY   UP-TO-DATE   AVAILABLE   AGE
 example-appconfig-workload-deployment   10/10   10           10          8m11s
 ```
 
 And a service looking like below
-```
+```console
 kubectl get services
-AME                                            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-example-appconfig-workload-deployment-service   ClusterIP   10.96.78.215   <none>        8080/TCP   8m28s
+AME                                             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+example-appconfig-workload-deployment-service   NodePort   10.96.78.215   <none>        8080/TCP   8m28s
 ```
