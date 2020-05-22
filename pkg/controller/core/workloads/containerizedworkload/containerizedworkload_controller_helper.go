@@ -32,6 +32,8 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 	}
 	// the translator lib doesn't set the namespace
 	deploy.Namespace = workload.Namespace
+	// make sure we don't have opinion on the replica count
+	deploy.Spec.Replicas = nil
 	// k8s server-side patch complains if the protocol is not set
 	for i := 0; i < len(deploy.Spec.Template.Spec.Containers); i++ {
 		for j := 0; j < len(deploy.Spec.Template.Spec.Containers[i].Ports); j++ {
@@ -62,8 +64,9 @@ func (r *Reconciler) renderService(ctx context.Context,
 	if !ok {
 		return nil, fmt.Errorf("internal error, service is not rendered correctly")
 	}
-	// the service injector lib doesn't set the namespace
+	// the service injector lib doesn't set the namespace and serviceType
 	service.Namespace = workload.Namespace
+	service.Spec.Type = corev1.ServiceTypeNodePort
 	// k8s server-side patch complains if the protocol is not set
 	for i := 0; i < len(service.Spec.Ports); i++ {
 		service.Spec.Ports[i].Protocol = corev1.ProtocolTCP

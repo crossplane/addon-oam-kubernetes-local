@@ -38,8 +38,9 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 
 	It("Test fetch the workload the trait is reference to", func() {
 		By("Setting up variables")
+		log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 		reconciler := &Reconciler{
-			Log: ctrl.Log.WithName("ManualScalarTraitReconciler"),
+			Log: log,
 		}
 		manualScalar := &oamv1alpha2.ManualScalerTrait{
 			TypeMeta: metav1.TypeMeta{
@@ -66,8 +67,8 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 		updateErr := fmt.Errorf("update errr")
 
 		type fields struct {
-			getFunc          test.ObjectFn
-			updateStatusFunc test.MockStatusUpdateFn
+			getFunc         test.ObjectFn
+			patchStatusFunc test.MockStatusPatchFn
 		}
 		type want struct {
 			wl     *unstructured.Unstructured
@@ -83,14 +84,15 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 					getFunc: func(obj runtime.Object) error {
 						return workloadErr
 					},
-					updateStatusFunc: func(_ context.Context, obj runtime.Object, _ ...client.UpdateOption) error {
+					patchStatusFunc: func(_ context.Context, obj runtime.Object, patch client.Patch,
+						_ ...client.PatchOption) error {
 						return nil
 					},
 				},
 				want: want{
 					wl:     nil,
-					result: ctrl.Result{RequeueAfter: oamReconcileWait},
-					err:    errors.Wrap(nil, errUpdateStatus),
+					result: util.ReconcileWaitResult,
+					err:    nil,
 				},
 			},
 			"FetchWorkload fail and update fails when getWorkload fails": {
@@ -98,14 +100,15 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 					getFunc: func(obj runtime.Object) error {
 						return workloadErr
 					},
-					updateStatusFunc: func(_ context.Context, obj runtime.Object, _ ...client.UpdateOption) error {
+					patchStatusFunc: func(_ context.Context, obj runtime.Object, patch client.Patch,
+						_ ...client.PatchOption) error {
 						return updateErr
 					},
 				},
 				want: want{
 					wl:     nil,
-					result: ctrl.Result{RequeueAfter: oamReconcileWait},
-					err:    errors.Wrap(updateErr, errUpdateStatus),
+					result: util.ReconcileWaitResult,
+					err:    errors.Wrap(updateErr, util.ErrUpdateStatus),
 				},
 			},
 			"FetchWorkload succeeds when getWorkload succeeds": {
@@ -115,7 +118,8 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 						*o = *uwl
 						return nil
 					},
-					updateStatusFunc: func(_ context.Context, obj runtime.Object, _ ...client.UpdateOption) error {
+					patchStatusFunc: func(_ context.Context, obj runtime.Object, patch client.Patch,
+						_ ...client.PatchOption) error {
 						return updateErr
 					},
 				},
@@ -127,12 +131,11 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 			},
 		}
 		for name, tc := range cases {
-			tclient := &test.MockClient{
-				MockGet:          test.NewMockGetFn(nil, tc.fields.getFunc),
-				MockStatusUpdate: tc.fields.updateStatusFunc,
-			}
+			tclient := test.NewMockClient()
+			tclient.MockGet = test.NewMockGetFn(nil, tc.fields.getFunc)
+			tclient.MockStatusPatch = tc.fields.patchStatusFunc
 			reconciler.Client = tclient
-			gotWL, result, err := reconciler.fetchWorkload(ctx, manualScalar)
+			gotWL, result, err := reconciler.fetchWorkload(ctx, log, manualScalar)
 			By(fmt.Sprint("Running test: ", name))
 			Expect(tc.want.err).Should(util.BeEquivalentToError(err))
 			Expect(tc.want.wl).Should(Equal(gotWL))

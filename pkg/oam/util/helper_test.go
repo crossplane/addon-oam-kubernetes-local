@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -27,6 +28,7 @@ var _ = Describe("Test helper utils", func() {
 	workloadAPIVersion := "core.oam.dev/v1"
 	workloadDefinitionName := "containerizedworkloads.core.oam.dev"
 	var workloadUID types.UID = "oamWorkloadUID"
+	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 	// workload CR
 	workload := v1alpha2.ContainerizedWorkload{
 		ObjectMeta: metav1.ObjectMeta{
@@ -40,11 +42,18 @@ var _ = Describe("Test helper utils", func() {
 	}
 	workload.SetUID(workloadUID)
 	unstructuredWorkload, _ := util.Object2Unstructured(workload)
-	// deployment resources pointing to the workload
-	deployment := unstructured.Unstructured{}
-	deployment.SetOwnerReferences([]metav1.OwnerReference{
+	// cResource resources pointing to the workload
+	cResource := unstructured.Unstructured{}
+	cResource.SetOwnerReferences([]metav1.OwnerReference{
 		{
 			UID: workloadUID,
+		},
+	})
+	// oResource resources pointing to the workload
+	oResource := unstructured.Unstructured{}
+	oResource.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			UID: "NotWorkloadUID",
 		},
 	})
 	// workload Definition
@@ -135,13 +144,39 @@ var _ = Describe("Test helper utils", func() {
 						if l.GetKind() != util.KindDeployment {
 							return getErr
 						}
-						l.Items = []unstructured.Unstructured{deployment}
+						l.Items = []unstructured.Unstructured{cResource}
 						return nil
 					},
 				},
 				want: want{
 					crks: []*unstructured.Unstructured{
-						&deployment,
+						&cResource,
+					},
+					err: nil,
+				},
+			},
+			"FetchWorkloadDefinition with many resources only pick the child one": {
+				fields: fields{
+					getFunc: func(obj runtime.Object) error {
+						o, _ := obj.(*v1alpha2.WorkloadDefinition)
+						w := workloadDefinition
+						w.Spec.ChildResourceKinds = crkl
+						*o = w
+						return nil
+					},
+					listFunc: func(o runtime.Object) error {
+						l := o.(*unstructured.UnstructuredList)
+						if l.GetKind() != util.KindDeployment {
+							return getErr
+						}
+						l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource, cResource,
+							oResource, oResource, oResource}
+						return nil
+					},
+				},
+				want: want{
+					crks: []*unstructured.Unstructured{
+						&cResource,
 					},
 					err: nil,
 				},
@@ -152,7 +187,7 @@ var _ = Describe("Test helper utils", func() {
 				MockGet:  test.NewMockGetFn(nil, tc.fields.getFunc),
 				MockList: test.NewMockListFn(nil, tc.fields.listFunc),
 			}
-			got, err := util.FetchWorkloadDefinition(ctx, &tclient, unstructuredWorkload)
+			got, err := util.FetchWorkloadDefinition(ctx, log, &tclient, unstructuredWorkload)
 			By(fmt.Sprint("Running test: ", name))
 			Expect(tc.want.err).Should(util.BeEquivalentToError(err))
 			Expect(tc.want.crks).Should(Equal(got))
