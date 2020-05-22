@@ -5,7 +5,7 @@
 replicaCount: 1
 useWebhook: false
 image:
-  repository: crossplane/addon-oam-kubernetes-local:v0.1 #oamdev/core-resource-controller:v0.43
+  repository: oamdev/core-resource-controller:v0.43 #crossplane/addon-oam-kubernetes-local:v0.1
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
