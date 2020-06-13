@@ -69,16 +69,45 @@ kubectl apply -f examples/containerized-workload/
 ```
 
 * Verify that the application is running
-You should see a deployment looking like below
+You can check the status and events from the applicationconfiguration object   
+```console
+kubectl describe applicationconfigurations.core.oam.dev example-appconfig
+Status:
+  Conditions:
+    Last Transition Time:  2020-06-12T21:18:40Z
+    Reason:                Successfully reconciled resource
+    Status:                True
+    Type:                  Synced
+  Workloads:
+    Component Name:  example-component
+    Traits:
+      Trait Ref:
+        API Version:  core.oam.dev/v1alpha2
+        Kind:         ManualScalerTrait
+        Name:         example-appconfig-trait
+    Workload Ref:
+      API Version:  core.oam.dev/v1alpha2
+      Kind:         ContainerizedWorkload
+      Name:         example-appconfig-workload
+Events:
+  Type    Reason                 Age                    From                                       Message
+  ----    ------                 ----                   ----                                       -------
+  Normal  RenderedComponents     48s (x220 over 3h35m)  oam/applicationconfiguration.core.oam.dev  Successfully rendered components
+  Normal  Deployment created     30s (x2 over 30s)      ContainerizedWorkload                      Successfully server side patched a deployment
+  Normal  Service created        30s (x2 over 30s)      ContainerizedWorkload                      Successfully applied a service
+  Normal  Manual scalar applied  30s                    ManualScalarTrait                          Successfully scaled a resource
+```
+
+You should also see a deployment looking like below
 ```console
 kubectl get deployments
 NAME                                    READY   UP-TO-DATE   AVAILABLE   AGE
-example-appconfig-workload-deployment   10/10   10           10          8m11s
+example-appconfig-workload-deployment   3/3   3           3              28s
 ```
 
 And a service looking like below
 ```console
 kubectl get services
 AME                                             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-example-appconfig-workload-deployment-service   NodePort   10.96.78.215   <none>        8080/TCP   8m28s
+example-appconfig-workload-deployment-service   NodePort   10.96.78.215   <none>        8080/TCP   28s
 ```

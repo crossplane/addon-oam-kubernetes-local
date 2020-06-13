@@ -21,40 +21,43 @@ import (
 	"strings"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	cpmeta "github.com/crossplane/crossplane-runtime/pkg/meta"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/kube-openapi/pkg/util/proto"
+	"k8s.io/kubectl/pkg/explain"
+	"k8s.io/kubectl/pkg/util/openapi"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 // Reconcile error strings.
 const (
-	errLocateWorkload   = "cannot find workload"
-	errLocateResources  = "cannot find resources"
-	errLocateDeployment = "cannot find deployment"
-	errScaleDeployment  = "cannot scale the deployment"
+	errLocateWorkload      = "cannot find workload"
+	errFetchChildResources = "failed to fetch workload child resources"
+	errQueryOpenAPI        = "failed to query openAPI"
+	errScaleResource       = "cannot scale the resource"
 )
 
 // Setup adds a controller that reconciles ContainerizedWorkload.
 func Setup(mgr ctrl.Manager, log logging.Logger) error {
 	reconciler := Reconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("ManualScalarTrait"),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		DiscoveryClient: *discovery.NewDiscoveryClientForConfigOrDie(mgr.GetConfig()),
+		log:             ctrl.Log.WithName("ManualScalarTrait"),
+		record:          event.NewAPIRecorder(mgr.GetEventRecorderFor("ManualScalarTrait")),
+		Scheme:          mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -62,7 +65,9 @@ func Setup(mgr ctrl.Manager, log logging.Logger) error {
 // Reconciler reconciles a ManualScalarTrait object
 type Reconciler struct {
 	client.Client
-	Log    logr.Logger
+	discovery.DiscoveryClient
+	log    logr.Logger
+	record event.Recorder
 	Scheme *runtime.Scheme
 }
 
@@ -75,7 +80,7 @@ type Reconciler struct {
 
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	mLog := r.Log.WithValues("manualscalar trait", req.NamespacedName)
+	mLog := r.log.WithValues("manualscalar trait", req.NamespacedName)
 
 	mLog.Info("Reconcile manualscalar trait")
 
@@ -83,28 +88,43 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	r.Log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
+	r.log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())
-
+	// find the resource object to record the event to, default is the parent appConfig.
+	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &manualScalar)
+	if eventObj == nil {
+		// fallback to workload itself
+		mLog.Error(err, "manualScalar", manualScalar.Name)
+		eventObj = &manualScalar
+	}
 	// Fetch the workload instance this trait is referring to
 	workload, result, err := r.fetchWorkload(ctx, mLog, &manualScalar)
 	if err != nil {
+		r.record.Event(eventObj, event.Warning(errLocateWorkload, err))
 		return result, err
 	}
 
 	// Fetch the child resources list from the corresponding workload
-	resources, err := util.FetchWorkloadDefinition(ctx, mLog, r, workload)
+	resources, err := util.FetchWorkloadChildResources(ctx, mLog, r, workload)
 	if err != nil {
-		mLog.Error(err, "Cannot find the workload child resources", "workload", workload.UnstructuredContent())
+		mLog.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
+		r.record.Event(eventObj, event.Warning(errFetchChildResources, err))
 		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
-			cpv1alpha1.ReconcileError(fmt.Errorf(errLocateResources)))
+			cpv1alpha1.ReconcileError(fmt.Errorf(errFetchChildResources)))
 	}
-
-	// Scale the child resources we know how to scale
-	result, err = r.scaleChildResources(ctx, mLog, manualScalar, resources)
+	// include the workload itself if there is no child resources
+	if len(resources) == 0 {
+		resources = append(resources, workload)
+	}
+	// Scale the child resources that we know how to scale
+	result, err = r.scaleResources(ctx, mLog, manualScalar, resources)
 	if err != nil {
+		r.record.Event(eventObj, event.Warning(errScaleResource, err))
 		return result, err
 	}
+	r.record.Event(eventObj, event.Normal("Manual scalar applied",
+		fmt.Sprintf("Trait `%s` successfully scaled a resouce to %d instances",
+			manualScalar.Name, manualScalar.Spec.ReplicaCount)))
 	return ctrl.Result{}, util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileSuccess())
 }
 
@@ -128,9 +148,9 @@ func (r *Reconciler) fetchWorkload(ctx context.Context, mLog logr.Logger,
 }
 
 // identify child resources and scale them
-func (r *Reconciler) scaleChildResources(ctx context.Context, mLog logr.Logger,
+func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 	manualScalar oamv1alpha2.ManualScalerTrait, resources []*unstructured.Unstructured) (ctrl.Result, error) {
-	// scale all the child resources that is of kind deployment
+	// scale all the resources that we can scale
 	isController := false
 	bod := true
 	found := false
@@ -143,30 +163,69 @@ func (r *Reconciler) scaleChildResources(ctx context.Context, mLog logr.Logger,
 		Controller:         &isController,
 		BlockOwnerDeletion: &bod,
 	}
+	// prepare for openApi schema check
+	schema_doc, err := r.DiscoveryClient.OpenAPISchema()
+	if err != nil {
+		return util.ReconcileWaitResult,
+			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+	}
+	document, err := openapi.NewOpenAPIData(schema_doc)
+	if err != nil {
+		return util.ReconcileWaitResult,
+			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+	}
 	for _, res := range resources {
-		if res.GetKind() == util.KindDeployment && res.GetAPIVersion() == appsv1.SchemeGroupVersion.String() {
+		if locateReplicaField(document, res) {
 			found = true
 			resPatch := client.MergeFrom(res.DeepCopyObject())
-			mLog.Info("Get the deployment the trait is going to modify",
-				"deploy name", res.GetName(), "UID", res.GetUID())
+			mLog.Info("Get the resource the trait is going to modify",
+				"resource name", res.GetName(), "UID", res.GetUID())
 			cpmeta.AddOwnerReference(res, ownerRef)
 			unstructured.SetNestedField(res.Object, int64(manualScalar.Spec.ReplicaCount), "spec", "replicas")
-			// merge patch to scale the deployment
+			// merge patch to scale the resource
 			if err := r.Patch(ctx, res, resPatch, client.FieldOwner(manualScalar.GetUID())); err != nil {
-				mLog.Error(err, "Failed to scale a deployment")
+				mLog.Error(err, "Failed to scale a resource")
 				return util.ReconcileWaitResult,
-					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleDeployment)))
+					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
 			}
-			mLog.Info("Successfully scaled a deployment", "UID", res.GetUID(), "target replica",
-				manualScalar.Spec.ReplicaCount)
+			mLog.Info("Successfully scaled a resource", "resource GVK", res.GroupVersionKind().String(),
+				"res UID", res.GetUID(), "target replica", manualScalar.Spec.ReplicaCount)
 		}
 	}
 	if !found {
-		mLog.Info("Cannot locate any deployment", "total resources", len(resources))
+		mLog.Info("Cannot locate any resource", "total resources", len(resources))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(fmt.Errorf(errLocateDeployment)))
+			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(fmt.Errorf(errScaleResource)))
 	}
 	return ctrl.Result{}, nil
+}
+
+// locateReplicaField call openapi RESTFUL end point to fetch the schema of a given resource and try to see
+// 	if it has a spec.replicas filed that is of type integer. We will apply duck typing to modify the fields there
+//  assuming that the fields is used to control the number of instances of this resource
+//  NOTE: This only works if the resource CRD has a structural schema, all `apiextensions.k8s.io/v1` CRDs do
+// https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
+func locateReplicaField(document openapi.Resources, res *unstructured.Unstructured) bool {
+	// this is the most common path for replicas fields
+	replicaFieldPath := []string{"spec", "replicas"}
+	g, v := util.ApiVersion2GroupVersion(res.GetAPIVersion())
+	// we look up the resource schema definition by its GVK
+	schema := document.LookupResource(schema.GroupVersionKind{
+		Group:   g,
+		Version: v,
+		Kind:    res.GetKind(),
+	})
+	// we try to see if there is a spec.replicas fields in its definition
+	field, err := explain.LookupSchemaForField(schema, replicaFieldPath)
+	if err != nil || field == nil {
+		return false
+	}
+	// we also verify that it is of type integer to further narrow down the candidates
+	replicaField, ok := field.(*proto.Primitive)
+	if !ok || replicaField.Type != "integer" {
+		return false
+	}
+	return true
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -174,11 +233,5 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		For(&oamv1alpha2.ManualScalerTrait{}).
-		Watches(&source.Kind{
-			Type: &appsv1.Deployment{},
-		}, &handler.EnqueueRequestForOwner{
-			OwnerType:    &oamv1alpha2.ManualScalerTrait{},
-			IsController: false, // we only added a owner reference to it as there can only be one
-		}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }

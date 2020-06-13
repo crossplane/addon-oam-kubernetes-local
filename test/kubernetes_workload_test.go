@@ -19,14 +19,13 @@ import (
 	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
-var _ = Describe("ContainerizedWorkload", func() {
+var _ = Describe("Test kubernetes native workloads", func() {
 	ctx := context.Background()
-	namespace := "containerized-workload-test"
-	trueVar := true
+	namespace := "kubernetes-workload-test"
 	falseVar := false
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   namespace,
+			Name: namespace,
 		},
 	}
 	BeforeEach(func() {
@@ -59,48 +58,51 @@ var _ = Describe("ContainerizedWorkload", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	It("apply an application config", func() {
-		label := map[string]string{"workload": "containerized-workload"}
-		// create a workload definition
+	It("use deployment workload", func() {
+		label := map[string]string{"workload": "deployment"}
+		// create a workload definition for
 		wd := oamv1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "containerizedworkloads.core.oam.dev",
+				Name:   "deployments.apps",
 				Labels: label,
 			},
 			Spec: oamv1alpha2.WorkloadDefinitionSpec{
 				Reference: oamv1alpha2.DefinitionReference{
-					Name: "containerizedworkloads.core.oam.dev",
-				},
-				ChildResourceKinds: []oamv1alpha2.ChildResourceKind{
-					{
-						APIVersion: corev1.SchemeGroupVersion.String(),
-						Kind:       util.KindService,
-					},
-					{
-						APIVersion: appsv1.SchemeGroupVersion.String(),
-						Kind:       util.KindDeployment,
-					},
+					Name: "deployments.apps",
 				},
 			},
 		}
-		logf.Log.Info("Creating workload definition")
+		logf.Log.Info("Creating workload definition for deployment")
 		// For some reason, WorkloadDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// create a workload CR
-		wl := oamv1alpha2.ContainerizedWorkload{
+		workloadName := "example-deployment-workload"
+		wl := appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Labels:    label,
+				Name:      workloadName,
 			},
-			Spec: oamv1alpha2.ContainerizedWorkloadSpec{
-				Containers: []oamv1alpha2.Container{
-					{
-						Name:  "wordpress",
-						Image: "wordpress:4.6.1-apache",
-						Ports: []oamv1alpha2.ContainerPort{
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: label,
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespace,
+						Labels:    label,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
-								Name: "wordpress",
-								Port: 80,
+								Name:  "wordpress",
+								Image: "wordpress:4.6.1-apache",
+								Ports: []corev1.ContainerPort{
+									{
+										Name:          "wordpress",
+										HostPort:      80,
+										ContainerPort: 8080,
+									},
+								},
 							},
 						},
 					},
@@ -112,7 +114,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		wl.APIVersion = gvks[0].GroupVersion().String()
 		wl.Kind = gvks[0].Kind
 		// Create a component definition
-		componentName := "example-component"
+		componentName := "example-deployment-workload"
 		comp := oamv1alpha2.Component{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      componentName,
@@ -125,25 +127,19 @@ var _ = Describe("ContainerizedWorkload", func() {
 				},
 				Parameters: []oamv1alpha2.ComponentParameter{
 					{
-						Name:       "instance-name",
-						Required:   &trueVar,
-						FieldPaths: []string{"metadata.name"},
-					},
-					{
 						Name:       "image",
 						Required:   &falseVar,
-						FieldPaths: []string{"spec.containers[0].image"},
+						FieldPaths: []string{"spec.template.spec.containers[0].image"},
 					},
 				},
 			},
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
-
 		// For some reason, traitDefinition is created as a Cluster scope object
 		Expect(k8sClient.Create(ctx, &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// Create a manualscaler trait CR
-		var replica int32 = 3
+		var replica int32 = 5
 		mts := oamv1alpha2.ManualScalerTrait{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
@@ -159,7 +155,6 @@ var _ = Describe("ContainerizedWorkload", func() {
 		mts.APIVersion = gvks[0].GroupVersion().String()
 		mts.Kind = gvks[0].Kind
 		// Create application configuration
-		workloadInstanceName := "example-appconfig-workload"
 		imageName := "wordpress:php7.2"
 		appConfig := oamv1alpha2.ApplicationConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
@@ -172,10 +167,6 @@ var _ = Describe("ContainerizedWorkload", func() {
 					{
 						ComponentName: componentName,
 						ParameterValues: []oamv1alpha2.ComponentParameterValue{
-							{
-								Name:  "instance-name",
-								Value: intstr.IntOrString{StrVal: workloadInstanceName, Type: intstr.String},
-							},
 							{
 								Name:  "image",
 								Value: intstr.IntOrString{StrVal: imageName, Type: intstr.String},
@@ -197,7 +188,7 @@ var _ = Describe("ContainerizedWorkload", func() {
 		// Verification
 		By("Checking deployment is created")
 		objectKey := client.ObjectKey{
-			Name:      workloadInstanceName,
+			Name:      workloadName,
 			Namespace: namespace,
 		}
 		deploy := &appsv1.Deployment{}
@@ -210,16 +201,6 @@ var _ = Describe("ContainerizedWorkload", func() {
 
 		By("Verify that the parameter substitute works")
 		Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(imageName))
-
-		// Verification
-		By("Checking service is created")
-		service := &corev1.Service{}
-		logf.Log.Info("Checking on service", "Key", objectKey)
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, service)
-			},
-			time.Second*15, time.Millisecond*500).Should(BeNil())
 
 		By("Verify deployment scaled according to the manualScaler trait")
 		Eventually(

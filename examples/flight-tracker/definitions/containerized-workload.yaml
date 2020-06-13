@@ -8,3 +8,5 @@ spec:
   childResourceKinds:
     - apiVersion: apps/v1
       kind: Deployment
+    - apiVersion: v1
+      kind: Service

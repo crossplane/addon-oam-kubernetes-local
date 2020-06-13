@@ -17,9 +17,11 @@ package containerizedworkload
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/go-logr/logr"
@@ -42,14 +44,14 @@ const (
 	errRenderService   = "cannot render service"
 	errApplyDeployment = "cannot apply the deployment"
 	errApplyService    = "cannot apply the service"
-	errGCDeployment    = "cannot clean up stale deployments"
 )
 
 // Setup adds a controller that reconciles ContainerizedWorkload.
 func Setup(mgr ctrl.Manager, log logging.Logger) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("ContainerizedWorkload"),
+		log:    ctrl.Log.WithName("ContainerizedWorkload"),
+		record: event.NewAPIRecorder(mgr.GetEventRecorderFor("ContainerizedWorkload")),
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)
@@ -58,7 +60,8 @@ func Setup(mgr ctrl.Manager, log logging.Logger) error {
 // ContainerizedWorkloadReconciler reconciles a ContainerizedWorkload object
 type Reconciler struct {
 	client.Client
-	Log    logr.Logger
+	log    logr.Logger
+	record event.Recorder
 	Scheme *runtime.Scheme
 }
 
@@ -69,7 +72,7 @@ type Reconciler struct {
 
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	log := r.Log.WithValues("containerizedworkload", req.NamespacedName)
+	log := r.log.WithValues("containerizedworkload", req.NamespacedName)
 	log.Info("Reconcile container workload")
 
 	var workload oamv1alpha2.ContainerizedWorkload
@@ -80,50 +83,55 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	log.Info("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
-
+	// find the resource object to record the event to, default is the parent appConfig.
+	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &workload)
+	if eventObj == nil {
+		// fallback to workload itself
+		log.Error(err, "workload", workload.Name)
+		eventObj = &workload
+	}
 	deploy, err := r.renderDeployment(ctx, &workload)
 	if err != nil {
 		log.Error(err, "Failed to render a deployment")
+		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
-	log.Info("Get a deployment", "deploy", deploy.Spec.Template.Spec.Containers[0])
-
-	log.Info("Successfully rendered a deployment",
-		"deployment name", deploy.Name,
-		"deployment Namespace", deploy.Namespace,
-		"number of containers", len(deploy.Spec.Template.Spec.Containers),
-		"first container image", deploy.Spec.Template.Spec.Containers[0].Image)
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
 	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply to a deployment")
+		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
 	}
-	log.Info("Successfully applied a deployment", "UID", deploy.UID)
+	r.record.Event(eventObj, event.Normal("Deployment created",
+		fmt.Sprintf("Workload `%s` successfully server side patched a deployment `%s`",
+			workload.Name, deploy.Name)))
 
 	// create a service for the workload
-	// TODO(rz): Use ingress trait instead
+	// TODO(rz): remove this after we have service trait
 	service, err := r.renderService(ctx, &workload, deploy)
 	if err != nil {
 		log.Error(err, "Failed to render a service")
+		r.record.Event(eventObj, event.Warning(errRenderService, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply a service")
+		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
 	}
-	log.Info("Successfully applied a service", "UID", service.UID)
-
+	r.record.Event(eventObj, event.Normal("Service created",
+		fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
+			workload.Name, service.Name)))
 	// garbage collect the service/deployments that we created but not needed
 	if err := r.cleanupResources(ctx, &workload, &deploy.UID, &service.UID); err != nil {
 		log.Error(err, "Failed to clean up resources")
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errGCDeployment)))
+		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 	}
 	workload.Status.Resources = nil
 	// record the new deployment

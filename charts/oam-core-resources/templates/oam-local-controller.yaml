@@ -206,7 +206,7 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ .Values.certificate.secretName | quote }}
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 60
     {{- with .Values.nodeSelector }}
     nodeSelector:
       {{ toYaml . | indent 8 }}

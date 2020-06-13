@@ -42,7 +42,7 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 			}
 		}
 	}
-	r.Log.Info(" rendered a deployment", "deploy", deploy.Spec.Template.Spec)
+	r.log.Info(" rendered a deployment", "deploy", deploy.Spec.Template.Spec)
 
 	// set the controller reference so that we can watch this deployment and it will be deleted automatically
 	if err := ctrl.SetControllerReference(workload, deploy, r.Scheme); err != nil {
@@ -81,7 +81,7 @@ func (r *Reconciler) renderService(ctx context.Context,
 // delete deployments/services that are not the same as the existing
 func (r *Reconciler) cleanupResources(ctx context.Context,
 	workload *oamv1alpha2.ContainerizedWorkload, deployUID, serviceUID *types.UID) error {
-	log := r.Log.WithValues("gc deployment", workload.Name)
+	log := r.log.WithValues("gc deployment", workload.Name)
 	var deploy appsv1.Deployment
 	var service corev1.Service
 	for _, res := range workload.Status.Resources {

@@ -40,7 +40,7 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 		By("Setting up variables")
 		log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 		reconciler := &Reconciler{
-			Log: log,
+			log: log,
 		}
 		manualScalar := &oamv1alpha2.ManualScalerTrait{
 			TypeMeta: metav1.TypeMeta{
