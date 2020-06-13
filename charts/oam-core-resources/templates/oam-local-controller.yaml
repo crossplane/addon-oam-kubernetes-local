@@ -1,84 +1,4 @@
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  creationTimestamp: null
-  name: {{ include "oam-core-resources.fullname" . }}
-rules:
-  - apiGroups:
-      - apps
-    resources:
-      - deployments
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - services
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - containerizedworkloads
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - containerizedworkloads/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - manualscalertraits
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - manualscalertraits/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - workloaddefinitions
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - core.oam.dev
-    resources:
-      - traitdefinitions
-    verbs:
-      - get
-      - list
-      - watch
----
-
 {{- if .Values.serviceAccount.create -}}
 apiVersion: v1
 kind: ServiceAccount
@@ -96,7 +16,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "oam-core-resources.fullname" . }}
+  name: "cluster-admin"
 subjects:
   - kind: ServiceAccount
     name: {{ include "oam-core-resources.serviceAccountName" . }}

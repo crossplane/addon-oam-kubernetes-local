@@ -34,6 +34,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	// +kubebuilder:scaffold:imports
+
+	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 var k8sClient client.Client
@@ -76,6 +78,8 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
+	// For some reason, traitDefinition is created as a Cluster scope object
+	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created manual scalar trait definition")
 	adminRoleBinding := rbac.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -100,6 +104,7 @@ var _ = BeforeSuite(func(done Done) {
 }, 300)
 
 var _ = AfterSuite(func() {
+	By("Tearing down the test environment")
 	adminRoleBinding := rbac.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   roleBindingName,
@@ -107,5 +112,14 @@ var _ = AfterSuite(func() {
 		},
 	}
 	Expect(k8sClient.Delete(context.Background(), &adminRoleBinding)).Should(BeNil())
-	By("Tearing down the test environment")
+	By("Deleted the cluster role binding")
+	manualscalertrait = oamv1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "manualscalertraits.core.oam.dev",
+			Labels: map[string]string{"trait": "manualscalertrait"},
+		},
+	}
+	Expect(k8sClient.Delete(context.Background(), &manualscalertrait)).Should(BeNil())
+	By("Deleted the manual scalertrait definition")
+
 })

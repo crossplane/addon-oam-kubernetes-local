@@ -139,9 +139,6 @@ var _ = Describe("ContainerizedWorkload", func() {
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
-
-		// For some reason, traitDefinition is created as a Cluster scope object
-		Expect(k8sClient.Create(ctx, &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		// Create a manualscaler trait CR
 		var replica int32 = 3
 		mts := oamv1alpha2.ManualScalerTrait{

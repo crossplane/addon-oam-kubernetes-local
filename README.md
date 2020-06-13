@@ -90,12 +90,14 @@ Status:
       Kind:         ContainerizedWorkload
       Name:         example-appconfig-workload
 Events:
-  Type    Reason                 Age                    From                                       Message
-  ----    ------                 ----                   ----                                       -------
-  Normal  RenderedComponents     48s (x220 over 3h35m)  oam/applicationconfiguration.core.oam.dev  Successfully rendered components
-  Normal  Deployment created     30s (x2 over 30s)      ContainerizedWorkload                      Successfully server side patched a deployment
-  Normal  Service created        30s (x2 over 30s)      ContainerizedWorkload                      Successfully applied a service
-  Normal  Manual scalar applied  30s                    ManualScalarTrait                          Successfully scaled a resource
+  Type    Reason                 Age              From                                       Message
+  ----    ------                 ----             ----                                       -------
+  Normal  RenderedComponents     6s (x2 over 7s)  oam/applicationconfiguration.core.oam.dev  Successfully rendered components
+  Normal  AppliedComponents      6s (x2 over 6s)  oam/applicationconfiguration.core.oam.dev  Successfully applied components
+  Normal  Deployment created     6s (x3 over 6s)  ContainerizedWorkload                      Workload `example-appconfig-workload` successfully server side patched a deployment `example-appconfig-workload`
+  Normal  Service created        6s (x3 over 6s)  ContainerizedWorkload                      Workload `example-appconfig-workload` successfully server side patched a service `example-appconfig-workload`
+  Normal  Manual scalar applied  6s (x2 over 6s)  ManualScalarTrait                          Trait `example-appconfig-trait` successfully scaled a resouce to 3 instances
+
 ```
 
 You should also see a deployment looking like below
