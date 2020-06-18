@@ -164,12 +164,12 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 		BlockOwnerDeletion: &bod,
 	}
 	// prepare for openApi schema check
-	schema_doc, err := r.DiscoveryClient.OpenAPISchema()
+	schemaDoc, err := r.DiscoveryClient.OpenAPISchema()
 	if err != nil {
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
 	}
-	document, err := openapi.NewOpenAPIData(schema_doc)
+	document, err := openapi.NewOpenAPIData(schemaDoc)
 	if err != nil {
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
