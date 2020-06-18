@@ -11,8 +11,10 @@ require (
 	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.8.1
 	gomodules.xyz/jsonpatch/v2 v2.0.1
-	k8s.io/api v0.18.2
-	k8s.io/apimachinery v0.18.2
-	k8s.io/client-go v0.18.2
+	k8s.io/api v0.18.3
+	k8s.io/apimachinery v0.18.3
+	k8s.io/client-go v0.18.3
+	k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
+	k8s.io/kubectl v0.18.3
 	sigs.k8s.io/controller-runtime v0.6.0
 )

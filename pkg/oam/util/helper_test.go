@@ -19,7 +19,7 @@ import (
 	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
-var _ = Describe("Test helper utils", func() {
+var _ = Describe("Test workload related helper utils", func() {
 	// Test common variables
 	ctx := context.Background()
 	namespace := "oamNS"
@@ -42,20 +42,6 @@ var _ = Describe("Test helper utils", func() {
 	}
 	workload.SetUID(workloadUID)
 	unstructuredWorkload, _ := util.Object2Unstructured(workload)
-	// cResource resources pointing to the workload
-	cResource := unstructured.Unstructured{}
-	cResource.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			UID: workloadUID,
-		},
-	})
-	// oResource resources pointing to the workload
-	oResource := unstructured.Unstructured{}
-	oResource.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			UID: "NotWorkloadUID",
-		},
-	})
 	// workload Definition
 	workloadDefinition := v1alpha2.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -67,20 +53,8 @@ var _ = Describe("Test helper utils", func() {
 			},
 		},
 	}
-	crkl := []v1alpha2.ChildResourceKind{
-		{
-			Kind:       "Deployment",
-			APIVersion: "apps/v1",
-		},
-	}
-	getErr := fmt.Errorf("get failed")
 
-	var nilListFunc test.ObjectFn = func(o runtime.Object) error {
-		u := &unstructured.Unstructured{}
-		l := o.(*unstructured.UnstructuredList)
-		l.Items = []unstructured.Unstructured{*u}
-		return nil
-	}
+	getErr := fmt.Errorf("get failed")
 
 	BeforeEach(func() {
 		logf.Log.Info("Set up resources before a unit test")
@@ -90,7 +64,97 @@ var _ = Describe("Test helper utils", func() {
 		logf.Log.Info("Clean up resources after a unit test")
 	})
 
+	It("Test fetch workloadDefinition", func() {
+		type fields struct {
+			getFunc test.ObjectFn
+		}
+		type want struct {
+			wld *v1alpha2.WorkloadDefinition
+			err error
+		}
+
+		cases := map[string]struct {
+			fields fields
+			want   want
+		}{
+			"FetchWorkloadDefinition fail when getWorkloadDefinition fails": {
+				fields: fields{
+					getFunc: func(obj runtime.Object) error {
+						return getErr
+					},
+				},
+				want: want{
+					wld: nil,
+					err: getErr,
+				},
+			},
+
+			"FetchWorkloadDefinition Success": {
+				fields: fields{
+					getFunc: func(obj runtime.Object) error {
+						o, _ := obj.(*v1alpha2.WorkloadDefinition)
+						w := workloadDefinition
+						*o = w
+						return nil
+					},
+				},
+				want: want{
+					wld: &workloadDefinition,
+					err: nil,
+				},
+			},
+		}
+		for name, tc := range cases {
+			tclient := test.MockClient{
+				MockGet: test.NewMockGetFn(nil, tc.fields.getFunc),
+			}
+			got, err := util.FetchWorkloadDefinition(ctx, &tclient, unstructuredWorkload)
+			By(fmt.Sprint("Running test: ", name))
+			Expect(tc.want.err).Should(util.BeEquivalentToError(err))
+			Expect(tc.want.wld).Should(Equal(got))
+		}
+	})
+
 	It("Test extract child resources from any workload", func() {
+		crkl := []v1alpha2.ChildResourceKind{
+			{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+			},
+			{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+		}
+		// cdResource is the child deployment owned by the workload
+		cdResource := unstructured.Unstructured{}
+		cdResource.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				Kind: util.KindDeployment,
+				UID:  workloadUID,
+			},
+		})
+		// cdResource is the child service owned by the workload
+		cSResource := unstructured.Unstructured{}
+		cSResource.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				Kind: util.KindService,
+				UID:  workloadUID,
+			},
+		})
+		// oResource is not owned by the workload
+		oResource := unstructured.Unstructured{}
+		oResource.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				UID: "NotWorkloadUID",
+			},
+		})
+		var nilListFunc test.ObjectFn = func(o runtime.Object) error {
+			u := &unstructured.Unstructured{}
+			l := o.(*unstructured.UnstructuredList)
+			l.Items = []unstructured.Unstructured{*u}
+			return nil
+		}
 		type fields struct {
 			getFunc  test.ObjectFn
 			listFunc test.ObjectFn
@@ -104,7 +168,7 @@ var _ = Describe("Test helper utils", func() {
 			fields fields
 			want   want
 		}{
-			"FetchWorkloadDefinition fail when getWorkloadDefinition fails": {
+			"FetchWorkloadChildResources fail when getWorkloadDefinition fails": {
 				fields: fields{
 					getFunc: func(obj runtime.Object) error {
 						return getErr
@@ -116,7 +180,7 @@ var _ = Describe("Test helper utils", func() {
 					err:  getErr,
 				},
 			},
-			"FetchWorkloadDefinition return nothing when the workloadDefinition doesn't have child list": {
+			"FetchWorkloadChildResources return nothing when the workloadDefinition doesn't have child list": {
 				fields: fields{
 					getFunc: func(obj runtime.Object) error {
 						o, _ := obj.(*v1alpha2.WorkloadDefinition)
@@ -130,7 +194,7 @@ var _ = Describe("Test helper utils", func() {
 					err:  nil,
 				},
 			},
-			"FetchWorkloadDefinition Success": {
+			"FetchWorkloadChildResources Success": {
 				fields: fields{
 					getFunc: func(obj runtime.Object) error {
 						o, _ := obj.(*v1alpha2.WorkloadDefinition)
@@ -141,21 +205,24 @@ var _ = Describe("Test helper utils", func() {
 					},
 					listFunc: func(o runtime.Object) error {
 						l := o.(*unstructured.UnstructuredList)
-						if l.GetKind() != util.KindDeployment {
+						if l.GetKind() == util.KindDeployment {
+							l.Items = append(l.Items, cdResource)
+						} else if l.GetKind() == util.KindService {
+							l.Items = append(l.Items, cSResource)
+						} else {
 							return getErr
 						}
-						l.Items = []unstructured.Unstructured{cResource}
 						return nil
 					},
 				},
 				want: want{
 					crks: []*unstructured.Unstructured{
-						&cResource,
+						&cdResource, &cSResource,
 					},
 					err: nil,
 				},
 			},
-			"FetchWorkloadDefinition with many resources only pick the child one": {
+			"FetchWorkloadChildResources with many resources only pick the child one": {
 				fields: fields{
 					getFunc: func(obj runtime.Object) error {
 						o, _ := obj.(*v1alpha2.WorkloadDefinition)
@@ -166,17 +233,19 @@ var _ = Describe("Test helper utils", func() {
 					},
 					listFunc: func(o runtime.Object) error {
 						l := o.(*unstructured.UnstructuredList)
-						if l.GetKind() != util.KindDeployment {
+						l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource,
+							oResource, oResource, oResource}
+						if l.GetKind() == util.KindDeployment {
+							l.Items = append(l.Items, cdResource)
+						} else if l.GetKind() != util.KindService {
 							return getErr
 						}
-						l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource, cResource,
-							oResource, oResource, oResource}
 						return nil
 					},
 				},
 				want: want{
 					crks: []*unstructured.Unstructured{
-						&cResource,
+						&cdResource,
 					},
 					err: nil,
 				},
@@ -187,7 +256,7 @@ var _ = Describe("Test helper utils", func() {
 				MockGet:  test.NewMockGetFn(nil, tc.fields.getFunc),
 				MockList: test.NewMockListFn(nil, tc.fields.listFunc),
 			}
-			got, err := util.FetchWorkloadDefinition(ctx, log, &tclient, unstructuredWorkload)
+			got, err := util.FetchWorkloadChildResources(ctx, log, &tclient, unstructuredWorkload)
 			By(fmt.Sprint("Running test: ", name))
 			Expect(tc.want.err).Should(util.BeEquivalentToError(err))
 			Expect(tc.want.crks).Should(Equal(got))

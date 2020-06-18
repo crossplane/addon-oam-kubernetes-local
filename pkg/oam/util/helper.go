@@ -32,6 +32,7 @@ var (
 
 const (
 	ErrUpdateStatus = "cannot apply status"
+	ErrLocateAppConfig = "cannot locate the parent application configuration to emit event to"
 )
 
 // A ConditionedObject is an Object type with condition field
@@ -41,16 +42,68 @@ type ConditionedObject interface {
 	oam.Conditioned
 }
 
+// LocateParentAppConfig locate the parent application configuration object
+func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject oam.Object) (oam.Object, error) {
+	var acName string
+	var eventObj = &v1alpha2.ApplicationConfiguration{}
+	// locate the appConf name from the owner list
+	for _, o := range oamObject.GetOwnerReferences() {
+		if o.Kind == reflect.TypeOf(v1alpha2.ApplicationConfiguration{}).Name() {
+			acName = o.Name
+		}
+	}
+	if len(acName) > 0 {
+		nn := types.NamespacedName{
+			Name:      acName,
+			Namespace: oamObject.GetNamespace(),
+		}
+		if err := client.Get(ctx, nn, eventObj); err != nil {
+			return nil, err
+		}
+		return eventObj, nil
+	} else {
+		return nil, errors.Errorf(ErrLocateAppConfig)
+	}
+}
+
+// FetchTraitDefinition fetch corresponding traitDefinition given a trait
+func FetchTraitDefinition(ctx context.Context, r client.Reader,
+	trait *unstructured.Unstructured) (*v1alpha2.TraitDefinition, error) {
+	// The name of the traitDefinition CR is the CRD name of the trait which is <purals>.<group>
+	gvr := GetGVResource(trait.Object)
+	trName := gvr.Resource + "." + gvr.Group
+	// the traitDefinition crd is cluster scoped
+	nn := types.NamespacedName{Name: trName}
+	// Fetch the corresponding traitDefinition CR
+	traitDefinition := &v1alpha2.TraitDefinition{}
+	if err := r.Get(ctx, nn, traitDefinition); err != nil {
+		return nil, err
+	}
+	return traitDefinition, nil
+}
+
 // FetchWorkloadDefinition fetch corresponding workloadDefinition given a workload
-func FetchWorkloadDefinition(ctx context.Context, mLog logr.Logger, r client.Reader,
-	workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+func FetchWorkloadDefinition(ctx context.Context, r client.Reader,
+	workload *unstructured.Unstructured) (*v1alpha2.WorkloadDefinition, error) {
 	// The name of the workloadDefinition CR is the CRD name of the component which is <purals>.<group>
-	gvr := getGVResource(workload.Object)
+	gvr := GetGVResource(workload.Object)
 	wldName := gvr.Resource + "." + gvr.Group
+	// the workloadDefinition crd is cluster scoped
 	nn := types.NamespacedName{Name: wldName}
 	// Fetch the corresponding workloadDefinition CR
 	workloadDefinition := &v1alpha2.WorkloadDefinition{}
 	if err := r.Get(ctx, nn, workloadDefinition); err != nil {
+		return nil, err
+	}
+	return workloadDefinition, nil
+}
+
+// FetchWorkloadChildResources fetch corresponding child resources given a workload
+func FetchWorkloadChildResources(ctx context.Context, mLog logr.Logger, r client.Reader,
+	workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
+	// Fetch the corresponding workloadDefinition CR
+	workloadDefinition, err := FetchWorkloadDefinition(ctx, r, workload)
+	if err != nil {
 		return nil, err
 	}
 	return fetchChildResources(ctx, mLog, r, workload, workloadDefinition.Spec.ChildResourceKinds)
@@ -96,7 +149,7 @@ func PatchCondition(ctx context.Context, r client.StatusClient, workload Conditi
 		ErrUpdateStatus)
 }
 
-func getGVResource(ob map[string]interface{}) metav1.GroupVersionResource {
+func GetGVResource(ob map[string]interface{}) metav1.GroupVersionResource {
 	apiVersion, _, _ := unstructured.NestedString(ob, "apiVersion")
 	kind, _, _ := unstructured.NestedString(ob, "kind")
 	g, v := ApiVersion2GroupVersion(apiVersion)
