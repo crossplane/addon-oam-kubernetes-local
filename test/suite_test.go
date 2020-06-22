@@ -33,9 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
 	// +kubebuilder:scaffold:imports
 
-	"github.com/crossplane/oam-controllers/pkg/oam/util"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 )
 
 var k8sClient client.Client

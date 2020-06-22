@@ -27,8 +27,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	oamcore "github.com/crossplane/oam-controllers/pkg/controller/core"
-	"github.com/crossplane/oam-controllers/pkg/webhooks"
+	oamcore "github.com/crossplane/addon-oam-kubernetes-local/pkg/controller/core"
+	"github.com/crossplane/addon-oam-kubernetes-local/pkg/webhooks"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -60,7 +60,7 @@ func main() {
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
 		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "oam-controller-runtime",
+		LeaderElectionID:   "oam-kubernetes-runtime-runtime",
 		CertDir:            webhooks.Cert_mount_path, // has to be the same as helm value
 		Port:               9443,
 	})

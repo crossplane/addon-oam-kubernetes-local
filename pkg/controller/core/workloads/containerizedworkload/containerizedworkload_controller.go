@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 // Reconcile error strings.
@@ -57,7 +56,7 @@ func Setup(mgr ctrl.Manager, log logging.Logger) error {
 	return reconciler.SetupWithManager(mgr)
 }
 
-// ContainerizedWorkloadReconciler reconciles a ContainerizedWorkload object
+// Reconciler reconciles a ContainerizedWorkload object
 type Reconciler struct {
 	client.Client
 	log    logr.Logger
@@ -65,11 +64,11 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// Reconcile reconciles a ContainerizedWorkload object
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
-
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.log.WithValues("containerizedworkload", req.NamespacedName)
@@ -155,6 +154,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
 }
 
+//SetupWithManager setups up k8s controller.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	src := &oamv1alpha2.ContainerizedWorkload{}
 	name := "oam/" + strings.ToLower(oamv1alpha2.ContainerizedWorkloadKind)

@@ -26,6 +26,7 @@ import (
 	cpmeta "github.com/crossplane/crossplane-runtime/pkg/meta"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,8 +39,6 @@ import (
 	"k8s.io/kubectl/pkg/util/openapi"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/crossplane/oam-controllers/pkg/oam/util"
 )
 
 // Reconcile error strings.
@@ -71,13 +70,13 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// Reconcile to reconcile manual trait.
 // +kubebuilder:rbac:groups=core.oam.dev,resources=manualscalertraits,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=manualscalertraits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads,verbs=get;list;
 // +kubebuilder:rbac:groups=core.oam.dev,resources=containerizedworkloads/status,verbs=get;
 // +kubebuilder:rbac:groups=core.oam.dev,resources=workloaddefinition,verbs=get;list;
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch;delete
-
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	mLog := r.log.WithValues("manualscalar trait", req.NamespacedName)
@@ -208,7 +207,7 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 func locateReplicaField(document openapi.Resources, res *unstructured.Unstructured) bool {
 	// this is the most common path for replicas fields
 	replicaFieldPath := []string{"spec", "replicas"}
-	g, v := util.ApiVersion2GroupVersion(res.GetAPIVersion())
+	g, v := util.APIVersion2GroupVersion(res.GetAPIVersion())
 	// we look up the resource schema definition by its GVK
 	schema := document.LookupResource(schema.GroupVersionKind{
 		Group:   g,
@@ -228,6 +227,7 @@ func locateReplicaField(document openapi.Resources, res *unstructured.Unstructur
 	return true
 }
 
+//SetupWithManager to setup k8s controller.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	name := "oam/" + strings.ToLower(oamv1alpha2.ManualScalerTraitKind)
 	return ctrl.NewControllerManagedBy(mgr).
