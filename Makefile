@@ -58,11 +58,19 @@ docker-push:
 kind-load:
 	kind load docker-image $(IMG) || { echo >&2 "kind not installed or error loading image: $(IMG)"; exit 1; }
 
-e2e-setup:
+e2e-setup-master:
+	kubectl create namespace crossplane-system
+	helm repo add crossplane-master https://charts.crossplane.io/master
+	helm install crossplane --namespace crossplane-system crossplane-master/crossplane --version $(shell helm search repo crossplane --devel  | grep "crossplane-master/crossplane " | cut -f2) --devel
+	kubectl wait --for=condition=Ready pod -l app=crossplane -n crossplane-system --timeout=300s
+
+e2e-setup-alpha:
 	kubectl create namespace crossplane-system
 	helm repo add crossplane-alpha https://charts.crossplane.io/alpha
 	helm install crossplane --namespace crossplane-system crossplane-alpha/crossplane
 	kubectl wait --for=condition=Ready pod -l app=crossplane -n crossplane-system --timeout=300s
+
+e2e-setup: e2e-setup-alpha
 
 e2e-cleanup:
 	helm uninstall crossplane --namespace crossplane-system

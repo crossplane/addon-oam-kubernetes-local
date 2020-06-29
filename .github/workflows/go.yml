@@ -52,10 +52,29 @@ jobs:
       with:
         version: "v0.7.0"
 
-    - name: Kubernetes E2E
+    - name: Setup Kubernetes and crossplane for E2E
       run: |
         kind get kubeconfig > kubeconfig
         export KUBECONFIG="$PWD/kubeconfig"
         kubectl wait -n kube-system --for=condition=Ready -l k8s-app=kube-dns pods --timeout=300s
         make e2e-setup
+
+    - name: Checkout oam-kubernetes-runtime.
+      uses: actions/checkout@v2
+      with:
+        repository: crossplane/oam-kubernetes-runtime
+        ref: 9d3a09f9c907e147393693fef561c6f389a025f2
+        path: oam-kubernetes-runtime
+
+    - name: Install CRDs from oam-kubernetes-runtime
+      run: |
+        cd oam-kubernetes-runtime
+        git submodule init
+        git submodule update
+        make generate
+        kubectl apply -f crds/
+        cd ..
+
+    - name: Kubernetes E2E
+      run: |
         make e2e-test
