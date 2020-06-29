@@ -1,11 +1,10 @@
-module github.com/crossplane/addon-oam-kubernetes-local
+module github.com/crossplane/oam-controllers
 
 go 1.13
 
 require (
 	github.com/crossplane/crossplane-runtime v0.8.0
 	github.com/crossplane/oam-kubernetes-runtime v0.0.3
-	github.com/gertd/go-pluralize v0.1.7
 	github.com/go-logr/logr v0.1.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
