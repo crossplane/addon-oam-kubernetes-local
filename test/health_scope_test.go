@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,9 +20,9 @@ import (
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 )
 
-var _ = Describe("ContainerizedWorkload", func() {
+var _ = Describe("HealthScope", func() {
 	ctx := context.Background()
-	namespace := "containerized-workload-test"
+	namespace := "health-scope-test"
 	trueVar := true
 	falseVar := false
 	ns := corev1.Namespace{
@@ -60,6 +61,32 @@ var _ = Describe("ContainerizedWorkload", func() {
 	})
 
 	It("apply an application config", func() {
+		healthScopeName := "example-health-scope"
+		// create health scope definition
+		sd := oamv1alpha2.ScopeDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "healthscope.core.oam.dev",
+			},
+			Spec: oamv1alpha2.ScopeDefinitionSpec{
+				AllowComponentOverlap: true,
+				Reference: oamv1alpha2.DefinitionReference{
+					Name: "healthscope.core.oam.dev",
+				},
+			},
+		}
+		logf.Log.Info("Creating health scope definition")
+		Expect(k8sClient.Create(ctx, &sd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// create health scope.
+		hs := oamv1alpha2.HealthScope{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      healthScopeName,
+				Namespace: namespace,
+			},
+		}
+		logf.Log.Info("Creating health scope")
+		Expect(k8sClient.Create(ctx, &hs)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		label := map[string]string{"workload": "containerized-workload"}
 		// create a workload definition
 		wd := oamv1alpha2.WorkloadDefinition{
@@ -139,24 +166,8 @@ var _ = Describe("ContainerizedWorkload", func() {
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
-		// Create a manualscaler trait CR
-		var replica int32 = 3
-		mts := oamv1alpha2.ManualScalerTrait{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      "sample-manualscaler-trait",
-				Labels:    label,
-			},
-			Spec: oamv1alpha2.ManualScalerTraitSpec{
-				ReplicaCount: replica,
-			},
-		}
-		// reflect trait gvk from scheme
-		gvks, _, _ = scheme.ObjectKinds(&mts)
-		mts.APIVersion = gvks[0].GroupVersion().String()
-		mts.Kind = gvks[0].Kind
 		// Create application configuration
-		workloadInstanceName := "example-appconfig-workload"
+		workloadInstanceName := "example-appconfig-healthscope"
 		imageName := "wordpress:php7.2"
 		appConfig := oamv1alpha2.ApplicationConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
@@ -178,10 +189,12 @@ var _ = Describe("ContainerizedWorkload", func() {
 								Value: intstr.IntOrString{StrVal: imageName, Type: intstr.String},
 							},
 						},
-						Traits: []oamv1alpha2.ComponentTrait{
+						Scopes: []oamv1alpha2.ComponentScope{
 							{
-								Trait: runtime.RawExtension{
-									Object: &mts,
+								ScopeReference: v1alpha1.TypedReference{
+									APIVersion: gvks[0].GroupVersion().String(),
+									Kind:       oamv1alpha2.HealthScopeGroupVersionKind.Kind,
+									Name:       healthScopeName,
 								},
 							},
 						},
@@ -218,13 +231,27 @@ var _ = Describe("ContainerizedWorkload", func() {
 			},
 			time.Second*15, time.Millisecond*500).Should(BeNil())
 
-		By("Verify deployment scaled according to the manualScaler trait")
+		healthScopeObject := client.ObjectKey{
+			Name:      healthScopeName,
+			Namespace: namespace,
+		}
+		healthScope := &oamv1alpha2.HealthScope{}
+		By("Verify health scope")
 		Eventually(
-			func() int32 {
-				k8sClient.Get(ctx, objectKey, deploy)
-				return deploy.Status.Replicas
+			func() bool {
+				k8sClient.Get(ctx, healthScopeObject, healthScope)
+				logf.Log.Info("Checking on health scope",
+					"len(WorkloadReferences)",
+					len(healthScope.Spec.WorkloadReferences),
+					"health",
+					healthScope.Status.Health)
+				// TODO(artursouza): enable this check once crossplane is updated.
+				//if len(healthScope.Spec.WorkloadReferences) == 0 {
+				//	return false
+				//}
+
+				return healthScope.Status.Health == "healthy"
 			},
-			time.Second*60, time.Second*5).Should(BeEquivalentTo(replica))
-		Expect(*deploy.Spec.Replicas).Should(BeEquivalentTo(replica))
+			time.Second*60, time.Second*5).Should(BeEquivalentTo(true))
 	})
 })

@@ -20,6 +20,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/crossplane/oam-controllers/pkg/controller/core/scopes/healthscope"
 	"github.com/crossplane/oam-controllers/pkg/controller/core/traits/manualscalertrait"
 	"github.com/crossplane/oam-controllers/pkg/controller/core/workloads/containerizedworkload"
 )
@@ -27,7 +28,7 @@ import (
 // Setup  controllers.
 func Setup(mgr ctrl.Manager, l logging.Logger) error {
 	for _, setup := range []func(ctrl.Manager, logging.Logger) error{
-		containerizedworkload.Setup, manualscalertrait.Setup,
+		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
 	} {
 		if err := setup(mgr, l); err != nil {
 			return err

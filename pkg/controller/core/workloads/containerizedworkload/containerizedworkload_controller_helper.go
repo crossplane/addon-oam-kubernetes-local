@@ -15,7 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/oam-controllers/pkg/oam/util"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 )
 
 // create a corresponding deployment
