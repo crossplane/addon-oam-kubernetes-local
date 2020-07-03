@@ -108,8 +108,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(errFetchChildResources, err))
-		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
-			cpv1alpha1.ReconcileError(fmt.Errorf(errFetchChildResources)))
+		if errP := util.PatchCondition(ctx, r, &manualScalar,
+			cpv1alpha1.ReconcileError(fmt.Errorf(errFetchChildResources))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	// include the workload itself if there is no child resources
 	if len(resources) == 0 {
@@ -137,8 +140,11 @@ func (r *Reconciler) fetchWorkload(ctx context.Context, mLog logr.Logger,
 	if err := r.Get(ctx, wn, &workload); err != nil {
 		mLog.Error(err, "Workload not find", "kind", oamTrait.GetWorkloadReference().Kind,
 			"workload name", oamTrait.GetWorkloadReference().Name)
-		return nil, util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, oamTrait, cpv1alpha1.ReconcileError(errors.Wrap(err, errLocateWorkload)))
+		if errP := util.PatchCondition(ctx, r, oamTrait,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errLocateWorkload))); errP != nil {
+			return nil, util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return nil, util.ReconcileWaitResult, err
 	}
 	mLog.Info("Get the workload the trait is pointing to", "workload name", workload.GetName(),
 		"workload APIVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind(), "workload UID",
@@ -165,13 +171,19 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 	// prepare for openApi schema check
 	schemaDoc, err := r.DiscoveryClient.OpenAPISchema()
 	if err != nil {
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+		if errP := util.PatchCondition(ctx, r, &manualScalar,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	document, err := openapi.NewOpenAPIData(schemaDoc)
 	if err != nil {
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI)))
+		if errP := util.PatchCondition(ctx, r, &manualScalar,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errQueryOpenAPI))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	for _, res := range resources {
 		if locateReplicaField(document, res) {
@@ -184,8 +196,11 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 			// merge patch to scale the resource
 			if err := r.Patch(ctx, res, resPatch, client.FieldOwner(manualScalar.GetUID())); err != nil {
 				mLog.Error(err, "Failed to scale a resource")
-				return util.ReconcileWaitResult,
-					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
+				if errP := util.PatchCondition(ctx, r, &manualScalar,
+					cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource))); errP != nil {
+					return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+				}
+				return util.ReconcileWaitResult, err
 			}
 			mLog.Info("Successfully scaled a resource", "resource GVK", res.GroupVersionKind().String(),
 				"res UID", res.GetUID(), "target replica", manualScalar.Spec.ReplicaCount)
