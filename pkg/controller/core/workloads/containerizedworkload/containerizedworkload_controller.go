@@ -93,16 +93,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		log.Error(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
+		if errP := util.PatchCondition(ctx, r, &workload,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
 	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
+		if errP := util.PatchCondition(ctx, r, &workload,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	r.record.Event(eventObj, event.Normal("Deployment created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a deployment `%s`",
@@ -114,15 +120,21 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		log.Error(err, "Failed to render a service")
 		r.record.Event(eventObj, event.Warning(errRenderService, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+		if errP := util.PatchCondition(ctx, r, &workload,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+		if errP := util.PatchCondition(ctx, r, &workload,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService))); errP != nil {
+			return util.ReconcileWaitResult, errors.Wrap(err, errP.Error())
+		}
+		return util.ReconcileWaitResult, err
 	}
 	r.record.Event(eventObj, event.Normal("Service created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",

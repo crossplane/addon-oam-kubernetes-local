@@ -92,7 +92,7 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 				want: want{
 					wl:     nil,
 					result: util.ReconcileWaitResult,
-					err:    nil,
+					err:    workloadErr,
 				},
 			},
 			"FetchWorkload fail and update fails when getWorkload fails": {
@@ -108,7 +108,7 @@ var _ = Describe("Manualscalar Trait Controller Test", func() {
 				want: want{
 					wl:     nil,
 					result: util.ReconcileWaitResult,
-					err:    errors.Wrap(updateErr, util.ErrUpdateStatus),
+					err:    errors.Wrap(workloadErr, errors.Wrap(updateErr, util.ErrUpdateStatus).Error()),
 				},
 			},
 			"FetchWorkload succeeds when getWorkload succeeds": {
